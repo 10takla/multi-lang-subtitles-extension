@@ -52,14 +52,9 @@
     SC.scanForVideos();
     SC.setupDOMSubtitleObserver();
 
-    const updateAllPositions = () => {
-      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
-      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
-    };
-
     // Keep on-video overlay and video icons strictly aligned with video bounds on resize/scroll/fullscreen
-    window.addEventListener('resize', updateAllPositions, { passive: true });
-    window.addEventListener('scroll', updateAllPositions, { passive: true });
+    window.addEventListener('resize', SC.scheduleUpdatePositions, { passive: true });
+    window.addEventListener('scroll', SC.scheduleUpdatePositions, { passive: true });
 
     const handleFsChange = () => {
       const fsElem = document.fullscreenElement || document.webkitFullscreenElement;
@@ -70,14 +65,14 @@
       } else if (SC.hostEl && SC.hostEl.parentNode !== document.body && SC.hostEl.parentNode !== document.documentElement) {
         (document.body || document.documentElement).appendChild(SC.hostEl);
       }
-      setTimeout(updateAllPositions, 100);
+      setTimeout(SC.scheduleUpdatePositions, 100);
     };
 
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
 
-    // Periodic sweep for dynamically injected video elements
-    setInterval(SC.scanForVideos, 2000);
+    // Periodic fallback sweep for dynamically injected video elements (DOM mutations handle immediate adds)
+    setInterval(SC.scanForVideos, 8000);
   }
 
   if (document.readyState === 'loading') {

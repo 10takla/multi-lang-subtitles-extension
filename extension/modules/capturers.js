@@ -149,9 +149,13 @@
   };
 
   // Extract YouTube caption tracks from player APIs, window object, or script tags
+  let lastYtFetchTime = 0;
   SC.fetchYouTubeCaptionTracks = function() {
     if (!location.hostname.includes('youtube.com')) return [];
     if (SC.ytCaptionTracks.length > 0) return SC.ytCaptionTracks;
+    const now = Date.now();
+    if (now - lastYtFetchTime < 5000) return [];
+    lastYtFetchTime = now;
 
     // 1. Try movie_player element APIs
     try {
@@ -284,8 +288,12 @@
     const lastLine = SC.state.lines.length > 0 ? SC.state.lines[SC.state.lines.length - 1] : null;
 
     // Check if identical to the last line
-    if (lastLine && lastLine.text === text && (now - lastLine.timestamp) < 4000) {
-      return;
+    if (lastLine && lastLine.text === text) {
+      if ((now - lastLine.timestamp) < 6000 || Math.abs(currentVideoTime - lastLine.rawTime) < 8) {
+        lastLine.timestamp = now;
+        SC.state.currentActiveLine = lastLine;
+        return;
+      }
     }
 
     // Handle streaming / incremental captions
@@ -346,6 +354,15 @@
     });
 
     SC.state.lines.push(newLine);
+
+    // Cap lines list to MAX_LINES to avoid memory and DOM bloat
+    const maxLines = SC.MAX_LINES || 250;
+    if (SC.state.lines.length > maxLines) {
+      const removed = SC.state.lines.splice(0, SC.state.lines.length - maxLines);
+      if (SC.removeLinesFromDOM) {
+        SC.removeLinesFromDOM(removed);
+      }
+    }
     SC.state.lastAddedText = text;
     SC.state.lastAddedTime = now;
     SC.state.lastVideoTime = currentVideoTime;
@@ -446,50 +463,78 @@
 
     // Timeupdate listener for direct YouTube timedtext cues, HTML5 textTracks, and prefetching
     let lastPrefetchTime = -999;
+    let lastMatchedCueText = null;
+    let lastMatchedCueStart = -1;
+
     video.addEventListener('timeupdate', () => {
       const t = video.currentTime;
+      let matchedText = null;
+      let matchedStart = null;
 
       // 1. YouTube direct timedtext cues
       if (SC.ytActiveCues.length > 0) {
         const match = SC.ytActiveCues.find(c => t >= c.start && t <= c.end);
         if (match) {
-          SC.addSubtitleLine(match.text, match.start);
+          matchedText = match.text;
+          matchedStart = match.start;
         }
       }
 
       // 2. HTML5 TextTrack cues (ensures capture even when video subtitles are toggled off in player)
-      if (video.textTracks && video.textTracks.length > 0) {
+      if (!matchedText && video.textTracks && video.textTracks.length > 0) {
+        const sourceItem = SC.state.languages.find(l => l.type === 'source');
         for (let i = 0; i < video.textTracks.length; i++) {
           const tr = video.textTracks[i];
           ensureHiddenMode(tr);
+
+          const trackVal = `track:${tr.language || i}`;
+          if (sourceItem && sourceItem.lang !== 'auto' && sourceItem.lang !== trackVal) {
+            continue;
+          }
+
+          // Fast path: check native activeCues first
+          if (tr.activeCues && tr.activeCues.length > 0) {
+            const c = tr.activeCues[0];
+            matchedText = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
+            matchedStart = c.startTime;
+            break;
+          }
+
+          // Fallback: search tr.cues
           if (tr.cues && tr.cues.length > 0) {
             for (let j = 0; j < tr.cues.length; j++) {
               const c = tr.cues[j];
               if (t >= c.startTime && t <= c.endTime) {
-                const raw = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
-                if (raw) {
-                  const sourceItem = SC.state.languages.find(l => l.type === 'source');
-                  const trackVal = `track:${tr.language || i}`;
-                  if (!sourceItem || sourceItem.lang === 'auto' || sourceItem.lang === trackVal) {
-                    SC.addSubtitleLine(raw, c.startTime);
-                  }
-                }
+                matchedText = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
+                matchedStart = c.startTime;
+                break;
               }
             }
           }
+          if (matchedText) break;
         }
       }
 
-      // Prefetch upcoming translations periodically (every ~2.5 seconds)
-      if (Math.abs(t - lastPrefetchTime) >= 2.5) {
+      // Only invoke addSubtitleLine when active cue text or start time actually changes
+      if (matchedText) {
+        if (matchedText !== lastMatchedCueText || Math.abs(matchedStart - lastMatchedCueStart) > 0.05) {
+          lastMatchedCueText = matchedText;
+          lastMatchedCueStart = matchedStart;
+          SC.addSubtitleLine(matchedText, matchedStart);
+        }
+      } else {
+        if (lastMatchedCueText !== null) {
+          lastMatchedCueText = null;
+          lastMatchedCueStart = -1;
+        }
+      }
+
+      // Prefetch upcoming translations periodically (every ~3.5 seconds)
+      if (Math.abs(t - lastPrefetchTime) >= 3.5) {
         lastPrefetchTime = t;
         if (SC.prefetchUpcomingTranslations) {
-          SC.prefetchUpcomingTranslations(t, 60);
+          SC.prefetchUpcomingTranslations(t, 45);
         }
-      }
-
-      if (SC.updateVideoIconsPosition) {
-        SC.updateVideoIconsPosition();
       }
     });
 
@@ -497,14 +542,14 @@
       try { SC.videoResizeObserver.observe(video); } catch (_) {}
     }
     video.addEventListener('play', () => {
-      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
-      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
-      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 60);
+      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
     });
     video.addEventListener('seeked', () => {
-      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
-      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
-      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 60);
+      lastMatchedCueText = null;
+      lastMatchedCueStart = -1;
+      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
     });
 
     // Hook existing textTracks
@@ -585,38 +630,60 @@
     }
 
     const observer = new MutationObserver((mutations) => {
-      // Check for newly added video elements
-      for (const m of mutations) {
+      let checkYT = false;
+      let checkVideos = false;
+      let checkGeneric = false;
+
+      for (let i = 0; i < mutations.length; i++) {
+        const m = mutations[i];
         if (m.type === 'childList') {
-          for (const node of m.addedNodes) {
+          for (let j = 0; j < m.addedNodes.length; j++) {
+            const node = m.addedNodes[j];
             if (node.nodeType === Node.ELEMENT_NODE) {
-              if (node.tagName === 'VIDEO') {
-                SC.hookVideo(node);
-              } else if (node.querySelectorAll) {
-                node.querySelectorAll('video').forEach(SC.hookVideo);
+              if (node.tagName === 'VIDEO' || (node.firstElementChild && node.querySelector('video'))) {
+                checkVideos = true;
               }
+              const cls = typeof node.className === 'string' ? node.className : '';
+              if (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('timedtext'))) {
+                checkYT = true;
+                checkGeneric = true;
+              }
+            }
+          }
+        } else if (m.type === 'characterData') {
+          const parent = m.target.parentElement;
+          if (parent) {
+            const cls = typeof parent.className === 'string' ? parent.className : '';
+            if (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('timedtext'))) {
+              checkYT = true;
+              checkGeneric = true;
             }
           }
         }
       }
 
-      // Check YouTube visual captions with debounce
-      if (document.querySelector('.ytp-caption-window-bottom, .caption-window, .ytp-caption-segment')) {
-        clearTimeout(ytDebounceTimer);
-        ytDebounceTimer = setTimeout(checkYouTubeCaptions, 120);
+      if (checkVideos) {
+        SC.scanForVideos();
       }
 
-      // Check generic caption selectors
-      for (const m of mutations) {
-        const target = m.target;
-        if (target && target.nodeType === Node.ELEMENT_NODE) {
-          for (const sel of captionSelectors) {
-            if (target.matches && (target.matches(sel) || target.closest(sel))) {
-              const text = (target.textContent || '').trim();
-              if (text && text.length > 1) {
-                const video = SC.getActiveVideo();
-                SC.addSubtitleLine(text, video ? video.currentTime : null);
-              }
+      if (checkYT) {
+        if (!ytDebounceTimer) {
+          ytDebounceTimer = setTimeout(() => {
+            ytDebounceTimer = null;
+            checkYouTubeCaptions();
+          }, 150);
+        }
+      }
+
+      if (checkGeneric) {
+        for (let i = 0; i < captionSelectors.length; i++) {
+          const sel = captionSelectors[i];
+          const el = document.querySelector(sel);
+          if (el) {
+            const text = (el.textContent || '').trim();
+            if (text && text.length > 1) {
+              const video = SC.getActiveVideo();
+              SC.addSubtitleLine(text, video ? video.currentTime : null);
               break;
             }
           }

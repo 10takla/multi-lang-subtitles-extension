@@ -93,6 +93,28 @@
     }
   };
 
+  // Coalesced rAF-throttled position updater for overlay and icons
+  let posRafScheduled = false;
+  SC.scheduleUpdatePositions = function() {
+    if (posRafScheduled) return;
+    posRafScheduled = true;
+    requestAnimationFrame(() => {
+      posRafScheduled = false;
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
+    });
+  };
+
+  // Remove trimmed old subtitle lines from DOM to keep memory bounded
+  SC.removeLinesFromDOM = function(removedLines) {
+    if (!SC.listEl || !removedLines || !removedLines.length) return;
+    for (let i = 0; i < removedLines.length; i++) {
+      const el = SC.shadowRoot?.getElementById(removedLines[i].id);
+      if (el) el.remove();
+    }
+    SC.updateBadge();
+  };
+
   // Initialize the in-page floating widget within Shadow DOM
   SC.initInPageWidget = function() {
     if (document.getElementById('subtitles-capturer-host')) return;
@@ -176,6 +198,23 @@
     SC.launcherBtn = launcher;
     SC.listEl = shadow.getElementById('sc-body');
     SC.countBadge = shadow.getElementById('sc-count');
+
+    // Delegated copy handler for all subtitle lines in widget
+    SC.listEl.addEventListener('click', (e) => {
+      const copyBtn = e.target.closest('.sc-line-copy');
+      if (!copyBtn) return;
+      e.stopPropagation();
+      const lineEl = copyBtn.closest('.sc-line');
+      if (!lineEl) return;
+      const line = SC.state.lines.find(l => l.id === lineEl.id);
+      if (line) {
+        const allText = SC.getLineFullText(line);
+        navigator.clipboard.writeText(`[${line.videoTime}] ${allText}`).then(() => {
+          copyBtn.textContent = '✓';
+          setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
+        }).catch(() => {});
+      }
+    });
 
     SC.setupWidgetEvents();
     SC.renderLanguageList();
@@ -555,16 +594,6 @@
     lineEl.style.fontSize = `${SC.state.fontSize}px`;
     lineEl.innerHTML = SC.renderLineHTML(line);
 
-    lineEl.querySelector('.sc-line-copy').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const allText = SC.getLineFullText(line);
-      navigator.clipboard.writeText(`[${line.videoTime}] ${allText}`).then(() => {
-        const btn = lineEl.querySelector('.sc-line-copy');
-        btn.textContent = '✓';
-        setTimeout(() => { btn.textContent = '📋'; }, 1200);
-      });
-    });
-
     SC.listEl.appendChild(lineEl);
     SC.updateBadge();
 
@@ -587,7 +616,7 @@
       return;
     }
 
-    SC.listEl.innerHTML = '';
+    const fragment = document.createDocumentFragment();
     SC.state.lines.forEach((line, idx) => {
       const lineEl = document.createElement('div');
       const isLatest = idx === SC.state.lines.length - 1;
@@ -595,19 +624,11 @@
       lineEl.id = line.id;
       lineEl.style.fontSize = `${SC.state.fontSize}px`;
       lineEl.innerHTML = SC.renderLineHTML(line);
-
-      lineEl.querySelector('.sc-line-copy').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const allText = SC.getLineFullText(line);
-        navigator.clipboard.writeText(`[${line.videoTime}] ${allText}`).then(() => {
-          const btn = lineEl.querySelector('.sc-line-copy');
-          btn.textContent = '✓';
-          setTimeout(() => { btn.textContent = '📋'; }, 1200);
-        });
-      });
-
-      SC.listEl.appendChild(lineEl);
+      fragment.appendChild(lineEl);
     });
+
+    SC.listEl.innerHTML = '';
+    SC.listEl.appendChild(fragment);
 
     SC.updateBadge();
     if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
@@ -622,15 +643,6 @@
     const lineEl = SC.shadowRoot.getElementById(line.id);
     if (lineEl) {
       lineEl.innerHTML = SC.renderLineHTML(line);
-      lineEl.querySelector('.sc-line-copy').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const allText = SC.getLineFullText(line);
-        navigator.clipboard.writeText(`[${line.videoTime}] ${allText}`).then(() => {
-          const btn = lineEl.querySelector('.sc-line-copy');
-          btn.textContent = '✓';
-          setTimeout(() => { btn.textContent = '📋'; }, 1200);
-        });
-      });
     }
     if (SC.state.currentActiveLine && SC.state.currentActiveLine.id === line.id) {
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();

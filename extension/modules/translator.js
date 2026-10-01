@@ -87,7 +87,7 @@
   };
 
   // Prefetch translations for upcoming subtitle cues ahead of time (30-60s buffer)
-  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferSeconds = 60) {
+  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferSeconds = 45) {
     if (!SC.getUpcomingCues) return;
 
     const translationItems = SC.state.languages.filter(l => l.type === 'translation' && (l.mode === 'trans' || !l.mode));
@@ -115,18 +115,31 @@
       const upcomingCues = SC.getUpcomingCues(t, bufferSeconds, sourceTrack);
       if (!upcomingCues || upcomingCues.length === 0) return;
 
-      upcomingCues.forEach(cue => {
+      const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
+      const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
+
+      // Filter cues that need fetching and sort by start time ascending
+      const needed = [];
+      for (let i = 0; i < upcomingCues.length; i++) {
+        const cue = upcomingCues[i];
         const sourceText = SC.cleanText(cue.text);
-        if (!sourceText) return;
-
-        const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
-        const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
-
+        if (!sourceText) continue;
         const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
         if (!SC.state.translationCache.has(cacheKey) && !inFlightRequests.has(cacheKey)) {
-          SC.fetchTranslation(sourceText, normTargetLang, normSourceLang);
+          needed.push({ cue, text: sourceText, key: cacheKey });
         }
-      });
+      }
+
+      if (needed.length === 0) return;
+
+      // Sort so the immediate upcoming cues are fetched first
+      needed.sort((a, b) => a.cue.start - b.cue.start);
+
+      // Fetch at most 6 nearest cues to prevent network saturation
+      const batch = needed.slice(0, 6);
+      for (let i = 0; i < batch.length; i++) {
+        SC.fetchTranslation(batch[i].text, normTargetLang, normSourceLang);
+      }
     });
   };
 

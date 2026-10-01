@@ -24,7 +24,8 @@
 
     if (typeof ResizeObserver !== 'undefined') {
       SC.videoResizeObserver = new ResizeObserver(() => {
-        SC.updateVideoOverlayPosition();
+        if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+        else SC.updateVideoOverlayPosition();
       });
     }
 

@@ -135,6 +135,8 @@
     activeVideo: null
   };
 
+  SC.MAX_LINES = 250;
+
   // Helper: Format seconds to MM:SS or HH:MM:SS
   SC.formatTime = function(seconds) {
     if (isNaN(seconds) || seconds < 0) return '00:00';
@@ -149,15 +151,25 @@
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  // Find currently active or playing video element
+  // Find currently active or playing video element with caching
   SC.getActiveVideo = function() {
+    if (SC.state.activeVideo && document.contains(SC.state.activeVideo) && !SC.state.activeVideo.paused) {
+      return SC.state.activeVideo;
+    }
+    const videos = document.getElementsByTagName('video');
+    if (!videos.length) return null;
+    for (let i = 0; i < videos.length; i++) {
+      const v = videos[i];
+      if (!v.paused && !v.ended && v.readyState > 2) {
+        SC.state.activeVideo = v;
+        return v;
+      }
+    }
     if (SC.state.activeVideo && document.contains(SC.state.activeVideo)) {
       return SC.state.activeVideo;
     }
-    const videos = Array.from(document.querySelectorAll('video'));
-    if (!videos.length) return null;
-    const playing = videos.find((v) => !v.paused && !v.ended && v.readyState > 2);
-    return playing || videos[0];
+    SC.state.activeVideo = videos[0];
+    return videos[0];
   };
 
   // Sanitize text
