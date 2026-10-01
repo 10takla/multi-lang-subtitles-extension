@@ -351,7 +351,6 @@
       SC.state.lastAddedTime = now;
 
       if (SC.translateLine) SC.translateLine(lastLine);
-      if (SC.updateLineInDOM) SC.updateLineInDOM(lastLine);
       SC.state.currentActiveLine = lastLine;
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
       SC.broadcastLineUpdate(lastLine, false);
@@ -405,8 +404,7 @@
     // Trigger translations
     if (SC.translateLine) SC.translateLine(newLine);
 
-    // Render into widget and overlay
-    if (SC.appendLineToDOM) SC.appendLineToDOM(newLine);
+    // Render active subtitle on video overlay
     if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
 
     // Auto-fade active on-video overlay after 5 seconds

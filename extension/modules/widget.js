@@ -146,11 +146,9 @@
             <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
           </svg>
           <span id="sc-status">Мультисубтитры</span>
-          <span class="sc-badge" id="sc-count">0</span>
         </div>
         <div class="sc-header-actions">
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
-          <button class="sc-btn-icon active" id="sc-btn-autoscroll" title="Автопрокрутка к новым строкам">↓</button>
           <button class="sc-btn-icon" id="sc-btn-font-dec" title="Уменьшить шрифт">A-</button>
           <button class="sc-btn-icon" id="sc-btn-font-inc" title="Увеличить шрифт">A+</button>
           <button class="sc-btn-icon" id="sc-btn-minimize" title="Свернуть">_</button>
@@ -182,18 +180,6 @@
           </div>
         </div>
       </div>
-
-      <div class="sc-body" id="sc-body">
-        <div class="sc-empty-msg" id="sc-empty">
-          Ожидание субтитров...<br>
-          Включите субтитры в плеере или воспроизведите видео.
-        </div>
-      </div>
-
-      <div class="sc-footer">
-        <button class="sc-btn-text" id="sc-btn-clear">Очистить</button>
-        <button class="sc-btn-text" id="sc-btn-copy-all">Копировать все</button>
-      </div>
     `;
 
     // Launcher button when widget is closed
@@ -215,25 +201,8 @@
 
     SC.widgetEl = widget;
     SC.launcherBtn = launcher;
-    SC.listEl = shadow.getElementById('sc-body');
-    SC.countBadge = shadow.getElementById('sc-count');
-
-    // Delegated copy handler for all subtitle lines in widget
-    SC.listEl.addEventListener('click', (e) => {
-      const copyBtn = e.target.closest('.sc-line-copy');
-      if (!copyBtn) return;
-      e.stopPropagation();
-      const lineEl = copyBtn.closest('.sc-line');
-      if (!lineEl) return;
-      const line = SC.state.lines.find(l => l.id === lineEl.id);
-      if (line) {
-        const allText = SC.getLineFullText(line);
-        navigator.clipboard.writeText(`[${line.videoTime}] ${allText}`).then(() => {
-          copyBtn.textContent = '✓';
-          setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
-        }).catch(() => {});
-      }
-    });
+    SC.listEl = null;
+    SC.countBadge = null;
 
     // Prevent accidental HTML5 text/element dragging across widget except language items
     widget.addEventListener('dragstart', (e) => {
@@ -542,182 +511,20 @@
     });
   };
 
-  // Render HTML structure for a single subtitle line in the widget
-  SC.renderLineHTML = function(line) {
-    let entriesHTML = '';
-    SC.state.languages.forEach(item => {
-      if (!item.visible) return;
-
-      if (item.type === 'source') {
-        entriesHTML += `
-          <div class="sc-sub-entry sc-sub-source">
-            <span class="sc-sub-tag">★ ОРИГ</span>
-            <span class="sc-sub-text">${SC.escapeHtml(line.text)}</span>
-          </div>
-        `;
-      } else if (item.mode === 'track') {
-        const trackText = line.trackTexts && line.trackTexts[item.lang] ? line.trackTexts[item.lang] : line.text;
-        const avail = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
-        const found = avail.find(a => a.value === item.lang);
-        const tag = (found ? found.label.replace(/^\[.*?\]\s*/, '') : (item.label || 'ТРЕК')).slice(0, 6).toUpperCase();
-        entriesHTML += `
-          <div class="sc-sub-entry sc-sub-track" data-track="${item.lang}">
-            <span class="sc-sub-tag" style="background:rgba(168,85,247,0.2);color:#c084fc">${SC.escapeHtml(tag)}</span>
-            <span class="sc-sub-text">${SC.escapeHtml(trackText)}</span>
-          </div>
-        `;
-      } else {
-        const transText = line.translations ? (line.translations[item.id] || line.translations[item.lang]) : null;
-        const tag = SC.getLangName(item.lang).slice(0, 4).toUpperCase();
-        entriesHTML += `
-          <div class="sc-sub-entry sc-sub-trans" data-item-id="${item.id}" data-lang="${item.lang}">
-            <span class="sc-sub-tag">${tag}</span>
-            <span class="sc-sub-text">${transText ? SC.escapeHtml(transText) : '<span class="sc-sub-loading">перевод...</span>'}</span>
-          </div>
-        `;
-      }
-    });
-
-    return `
-      <span class="sc-timestamp">${line.videoTime}</span>
-      <div class="sc-line-content">
-        ${entriesHTML || '<span class="sc-sub-loading">(языки скрыты)</span>'}
-      </div>
-      <button class="sc-line-copy" title="Копировать строку">📋</button>
-    `;
-  };
-
-  // Update translation text for a line in the widget DOM
+  // Update on-video overlay when translation finishes
   SC.updateTranslationInDOM = function(lineId, itemIdOrLang, text) {
-    if (SC.listEl) {
-      const lineEl = SC.shadowRoot.getElementById(lineId);
-      if (lineEl) {
-        const transRow = lineEl.querySelector(`.sc-sub-trans[data-item-id="${itemIdOrLang}"] .sc-sub-text`)
-                      || lineEl.querySelector(`.sc-sub-trans[data-lang="${itemIdOrLang}"] .sc-sub-text`);
-        if (transRow) {
-          transRow.innerHTML = SC.escapeHtml(text);
-        }
-      }
-    }
     if (SC.state.currentActiveLine && SC.state.currentActiveLine.id === lineId) {
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
     }
   };
 
-  // Append new subtitle line to widget DOM
-  SC.appendLineToDOM = function(line) {
-    if (!SC.listEl) return;
-
-    const emptyMsg = SC.shadowRoot.getElementById('sc-empty');
-    if (emptyMsg) emptyMsg.remove();
-
-    const prevLatest = SC.listEl.querySelector('.sc-line.sc-latest');
-    if (prevLatest) prevLatest.classList.remove('sc-latest');
-
-    const lineEl = document.createElement('div');
-    lineEl.className = 'sc-line sc-latest';
-    lineEl.id = line.id;
-    lineEl.style.fontSize = `${SC.state.fontSize}px`;
-    lineEl.innerHTML = SC.renderLineHTML(line);
-
-    SC.listEl.appendChild(lineEl);
-    SC.updateBadge();
-
-    if (SC.state.autoScroll) {
-      SC.scrollListToBottom();
-    }
-  };
-
-  // Render all recorded lines in the widget
+  // Trigger on-video overlay update when language configuration changes
   SC.renderAllLines = function() {
-    if (!SC.listEl) return;
-    if (!SC.state.lines.length) {
-      SC.listEl.innerHTML = `
-        <div class="sc-empty-msg" id="sc-empty">
-          Ожидание субтитров...<br>
-          Включите субтитры в плеере или воспроизведите видео.
-        </div>
-      `;
-      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
-      return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    SC.state.lines.forEach((line, idx) => {
-      const lineEl = document.createElement('div');
-      const isLatest = idx === SC.state.lines.length - 1;
-      lineEl.className = `sc-line ${isLatest ? 'sc-latest' : ''}`;
-      lineEl.id = line.id;
-      lineEl.style.fontSize = `${SC.state.fontSize}px`;
-      lineEl.innerHTML = SC.renderLineHTML(line);
-      fragment.appendChild(lineEl);
-    });
-
-    SC.listEl.innerHTML = '';
-    SC.listEl.appendChild(fragment);
-
-    SC.updateBadge();
     if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
-    if (SC.state.autoScroll) {
-      SC.scrollListToBottom();
-    }
   };
 
-  // Update existing line in DOM
-  SC.updateLineInDOM = function(line) {
-    if (!SC.listEl) return;
-    const lineEl = SC.shadowRoot.getElementById(line.id);
-    if (lineEl) {
-      lineEl.innerHTML = SC.renderLineHTML(line);
-    }
-    if (SC.state.currentActiveLine && SC.state.currentActiveLine.id === line.id) {
-      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
-    }
-  };
-
-  SC.scrollListToBottom = function() {
-    if (!SC.listEl) return;
-    SC.listEl.scrollTop = SC.listEl.scrollHeight;
-  };
-
-  SC.updateBadge = function() {
-    if (SC.countBadge) {
-      SC.countBadge.textContent = SC.state.lines.length;
-    }
-  };
-
-  SC.clearAllSubtitles = function() {
-    SC.state.lines = [];
-    SC.state.lastAddedText = '';
-    SC.state.lastAddedTime = 0;
-    SC.state.activeStreamingLineId = null;
-    SC.state.currentActiveLine = null;
-    if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
-
-    if (SC.listEl) {
-      SC.listEl.innerHTML = `
-        <div class="sc-empty-msg" id="sc-empty">
-          Ожидание субтитров...<br>
-          Включите субтитры в плеере или воспроизведите видео.
-        </div>
-      `;
-    }
-    SC.updateBadge();
-
-    try {
-      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-        chrome.runtime.sendMessage({ type: 'RESET_COUNT' }).catch(() => {});
-      }
-    } catch (_) {}
-  };
-
+  // Apply font size adjustment to on-video overlay
   SC.applyFontSize = function() {
-    if (SC.listEl) {
-      const lines = SC.listEl.querySelectorAll('.sc-line');
-      lines.forEach(l => {
-        l.style.fontSize = `${SC.state.fontSize}px`;
-      });
-    }
     if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
   };
 
@@ -763,11 +570,13 @@
     }
 
     // Auto-scroll toggle
-    autoScrollBtn.addEventListener('click', () => {
-      SC.state.autoScroll = !SC.state.autoScroll;
-      autoScrollBtn.classList.toggle('active', SC.state.autoScroll);
-      if (SC.state.autoScroll) SC.scrollListToBottom();
-    });
+    if (autoScrollBtn) {
+      autoScrollBtn.addEventListener('click', () => {
+        SC.state.autoScroll = !SC.state.autoScroll;
+        autoScrollBtn.classList.toggle('active', SC.state.autoScroll);
+        if (SC.state.autoScroll) SC.scrollListToBottom();
+      });
+    }
 
     // Font size adjustments
     fontIncBtn.addEventListener('click', () => {
@@ -961,23 +770,27 @@
     }
 
     // Clear history
-    clearBtn.addEventListener('click', () => {
-      SC.clearAllSubtitles();
-    });
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        SC.clearAllSubtitles();
+      });
+    }
 
     // Copy all
-    copyAllBtn.addEventListener('click', () => {
-      const textToCopy = SC.state.lines.map(l => {
-        const fullText = SC.getLineFullText(l);
-        return fullText ? `[${l.videoTime}] ${fullText}` : '';
-      }).filter(Boolean).join('\n');
+    if (copyAllBtn) {
+      copyAllBtn.addEventListener('click', () => {
+        const textToCopy = SC.state.lines.map(l => {
+          const fullText = SC.getLineFullText(l);
+          return fullText ? `[${l.videoTime}] ${fullText}` : '';
+        }).filter(Boolean).join('\n');
 
-      if (!textToCopy) return;
-      navigator.clipboard.writeText(textToCopy).then(() => {
-        copyAllBtn.textContent = 'Скопировано!';
-        setTimeout(() => { copyAllBtn.textContent = 'Копировать все'; }, 1500);
+        if (!textToCopy) return;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          copyAllBtn.textContent = 'Скопировано!';
+          setTimeout(() => { copyAllBtn.textContent = 'Копировать все'; }, 1500);
+        });
       });
-    });
+    }
   };
 
   // Draggable logic for widget window header
