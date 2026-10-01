@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Subtitles Test Stand</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f0f2f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    video {
+      width: 100%;
+      border-radius: 4px;
+      background: #000;
+    }
+    h2 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Тестовый стенд для проверки субтитров</h2>
+    <p>Локальное видео с дорожкой WebVTT (autoplay, muted, loop).</p>
+
+    <video id="test-video" controls autoplay muted loop playsinline>
+      <source src="sample.mp4" type="video/mp4">
+      Ваш браузер не поддерживает элемент <code>video</code>.
+    </video>
+  </div>
+
+  <script>
+    const video = document.getElementById('test-video');
+    // Добавляем дорожку программно через VTTCue для предотвращения CORS/origin ошибок в file://
+    const track = video.addTextTrack('subtitles', 'Русский', 'ru');
+    track.mode = 'showing';
+    track.addCue(new VTTCue(0.5, 3.0, 'Первая строка тестовых субтитров'));
+    track.addCue(new VTTCue(3.5, 6.0, 'Вторая строка: отслеживание работает'));
+    track.addCue(new VTTCue(6.5, 9.5, 'Третья строка: субтитры успешно захвачены'));
+
+    video.play().catch(e => console.log('Autoplay handled:', e));
+  </script>
+</body>
+</html>
