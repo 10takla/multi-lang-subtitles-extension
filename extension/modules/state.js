@@ -128,11 +128,12 @@
       { id: 'source', type: 'source', lang: 'auto', label: 'Оригинал', visible: true }
     ],
     translationCache: new Map(),
-    videoOverlayPosition: 'bottom', // 'bottom' | 'center' | 'top' | 'custom'
-    customOverlayPos: null,
+    overlayPosX: 50, // 0-100% X position (ai_instrs/_.md:24)
+    overlayPosY: 90, // 0-100% Y position (ai_instrs/_.md:24)
     currentActiveLine: null,
     overlayFadeTimeout: null,
-    activeVideo: null
+    activeVideo: null,
+    showLanguageTags: false // Default off (ai_instrs/_.md:23)
   };
 
   SC.MAX_LINES = 250;

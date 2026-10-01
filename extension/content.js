@@ -48,6 +48,7 @@
 
   // App initialization
   function init() {
+    if (SC.initYouTubeBridge) SC.initYouTubeBridge();
     SC.initInPageWidget();
     SC.scanForVideos();
     SC.setupDOMSubtitleObserver();

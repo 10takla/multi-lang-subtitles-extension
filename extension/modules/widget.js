@@ -149,7 +149,7 @@
           <span class="sc-badge" id="sc-count">0</span>
         </div>
         <div class="sc-header-actions">
-          <button class="sc-btn-icon" id="sc-btn-position" title="Позиционирование субтитров на видео (Внизу / В центре / Вверху)">⛶</button>
+          <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
           <button class="sc-btn-icon active" id="sc-btn-autoscroll" title="Автопрокрутка к новым строкам">↓</button>
           <button class="sc-btn-icon" id="sc-btn-font-dec" title="Уменьшить шрифт">A-</button>
           <button class="sc-btn-icon" id="sc-btn-font-inc" title="Увеличить шрифт">A+</button>
@@ -162,6 +162,25 @@
       <div class="sc-lang-bar" id="sc-lang-bar">
         <div class="sc-lang-list" id="sc-lang-list"></div>
         <button class="sc-btn-add-lang" id="sc-btn-add-lang" title="Добавить перевод или альтернативную дорожку">+ Добавить язык</button>
+      </div>
+
+      <!-- Subtitle position sliders with input (ai_instrs/_.md:24) -->
+      <div class="sc-pos-bar" id="sc-pos-bar">
+        <span class="sc-pos-label">Позиция:</span>
+        <div class="sc-pos-item">
+          <span class="sc-pos-axis">X</span>
+          <input type="range" class="sc-pos-slider" id="sc-slider-x" min="0" max="100" value="50" title="Позиционирование субтитров X (0-100%)">
+          <div class="sc-pos-input-wrap">
+            <input type="number" class="sc-pos-input" id="sc-input-x" min="0" max="100" value="50" title="Ввод координаты X (0-100%)"><span class="sc-pos-unit">%</span>
+          </div>
+        </div>
+        <div class="sc-pos-item">
+          <span class="sc-pos-axis">Y</span>
+          <input type="range" class="sc-pos-slider" id="sc-slider-y" min="0" max="100" value="90" title="Позиционирование субтитров Y (0-100%)">
+          <div class="sc-pos-input-wrap">
+            <input type="number" class="sc-pos-input" id="sc-input-y" min="0" max="100" value="90" title="Ввод координаты Y (0-100%)"><span class="sc-pos-unit">%</span>
+          </div>
+        </div>
       </div>
 
       <div class="sc-body" id="sc-body">
@@ -213,6 +232,13 @@
           copyBtn.textContent = '✓';
           setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
         }).catch(() => {});
+      }
+    });
+
+    // Prevent accidental HTML5 text/element dragging across widget except language items
+    widget.addEventListener('dragstart', (e) => {
+      if (!e.target.closest('.sc-lang-item')) {
+        e.preventDefault();
       }
     });
 
@@ -706,7 +732,11 @@
     const fontIncBtn = shadow.getElementById('sc-btn-font-inc');
     const fontDecBtn = shadow.getElementById('sc-btn-font-dec');
     const addLangBtn = shadow.getElementById('sc-btn-add-lang');
-    const posBtn = shadow.getElementById('sc-btn-position');
+    const sliderX = shadow.getElementById('sc-slider-x');
+    const sliderY = shadow.getElementById('sc-slider-y');
+    const inputX = shadow.getElementById('sc-input-x');
+    const inputY = shadow.getElementById('sc-input-y');
+    const langTagsBtn = shadow.getElementById('sc-btn-lang-tags');
 
     // Add translation language
     if (addLangBtn) {
@@ -770,40 +800,164 @@
       SC.openWidget();
     });
 
-    // Video Subtitles Position control (bottom -> center -> top -> bottom)
-    if (posBtn) {
-      posBtn.addEventListener('click', () => {
-        if (SC.state.videoOverlayPosition === 'bottom') {
-          SC.state.videoOverlayPosition = 'center';
-          posBtn.title = 'Позиционирование субтитров на видео: По центру';
-          posBtn.classList.add('active');
-          showStatus('Позиция: Центр');
-        } else if (SC.state.videoOverlayPosition === 'center') {
-          SC.state.videoOverlayPosition = 'top';
-          posBtn.title = 'Позиционирование субтитров на видео: Вверху';
-          posBtn.classList.add('active');
-          showStatus('Позиция: Верх');
-        } else {
-          SC.state.videoOverlayPosition = 'bottom';
-          posBtn.title = 'Позиционирование субтитров на видео: Внизу';
-          posBtn.classList.remove('active');
-          showStatus('Позиция: Низ');
+    // Video Subtitles Position sliders (ai_instrs/_.md:24)
+    const posBar = shadow.getElementById('sc-pos-bar');
+    if (posBar) {
+      posBar.addEventListener('dragstart', (e) => e.preventDefault());
+    }
+
+    SC.syncPositionSliders = function() {
+      if (sliderX && inputX) {
+        sliderX.value = SC.state.overlayPosX;
+        inputX.value = SC.state.overlayPosX;
+      }
+      if (sliderY && inputY) {
+        sliderY.value = SC.state.overlayPosY;
+        inputY.value = SC.state.overlayPosY;
+      }
+    };
+
+    const attachPointerDrag = (slider, onUpdate) => {
+      if (!slider) return;
+
+      let activePointerId = null;
+
+      const calcPct = (e) => {
+        const rect = slider.getBoundingClientRect();
+        if (rect.width <= 0) return 0;
+        const x = e.clientX;
+        return Math.round(Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100)));
+      };
+
+      slider.addEventListener('pointerdown', (e) => {
+        activePointerId = e.pointerId;
+        try { slider.setPointerCapture(e.pointerId); } catch (_) {}
+        const pct = calcPct(e);
+        slider.value = pct;
+        onUpdate(pct);
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      slider.addEventListener('pointermove', (e) => {
+        if (activePointerId === null) return;
+        const pct = calcPct(e);
+        slider.value = pct;
+        onUpdate(pct);
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      const release = (e) => {
+        if (activePointerId !== null) {
+          try { slider.releasePointerCapture(activePointerId); } catch (_) {}
+          activePointerId = null;
         }
-        SC.state.customOverlayPos = null;
+      };
+
+      slider.addEventListener('pointerup', release);
+      slider.addEventListener('pointercancel', release);
+      slider.addEventListener('dragstart', (e) => e.preventDefault());
+    };
+
+    attachPointerDrag(sliderX, (val) => {
+      SC.state.overlayPosX = val;
+      if (inputX) inputX.value = val;
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+    });
+
+    attachPointerDrag(sliderY, (val) => {
+      SC.state.overlayPosY = val;
+      if (inputY) inputY.value = val;
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+    });
+
+    if (sliderX && inputX) {
+      sliderX.addEventListener('input', () => {
+        SC.state.overlayPosX = Number(sliderX.value);
+        inputX.value = SC.state.overlayPosX;
         if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       });
     }
 
+    if (sliderY && inputY) {
+      sliderY.addEventListener('input', () => {
+        SC.state.overlayPosY = Number(sliderY.value);
+        inputY.value = SC.state.overlayPosY;
+        if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      });
+    }
+
+    // Direct numeric input handlers
+    const setupInputField = (input, slider, isX) => {
+      if (!input) return;
+
+      const applyValue = (rawVal) => {
+        let val = parseInt(rawVal, 10);
+        if (isNaN(val)) val = 0;
+        val = Math.max(0, Math.min(100, val));
+        input.value = val;
+        if (slider) slider.value = val;
+        if (isX) {
+          SC.state.overlayPosX = val;
+        } else {
+          SC.state.overlayPosY = val;
+        }
+        if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      };
+
+      input.addEventListener('input', () => {
+        if (input.value === '') return;
+        applyValue(input.value);
+      });
+
+      input.addEventListener('change', () => {
+        applyValue(input.value);
+      });
+
+      input.addEventListener('blur', () => {
+        applyValue(input.value);
+      });
+
+      input.addEventListener('mousedown', (e) => e.stopPropagation());
+      input.addEventListener('click', (e) => e.stopPropagation());
+      input.addEventListener('keydown', (e) => e.stopPropagation());
+    };
+
+    setupInputField(inputX, sliderX, true);
+    setupInputField(inputY, sliderY, false);
+
+    SC.syncPositionSliders();
+
+    // Language tags prefix toggle (ai_instrs/_.md:23)
+    if (langTagsBtn) {
+      langTagsBtn.addEventListener('click', () => {
+        SC.state.showLanguageTags = !SC.state.showLanguageTags;
+        langTagsBtn.classList.toggle('active', SC.state.showLanguageTags);
+        langTagsBtn.title = SC.state.showLanguageTags
+          ? 'Тег языка перед субтитрами на видео: Вкл'
+          : 'Тег языка перед субтитрами на видео: Выкл (по умолчанию)';
+        showStatus(SC.state.showLanguageTags ? 'Теги языка: Вкл' : 'Теги языка: Выкл');
+        if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      });
+    }
+
+    let toastTimer = null;
     function showStatus(text) {
-      const statusEl = shadow.getElementById('sc-status');
-      if (statusEl) {
-        statusEl.textContent = text;
-        setTimeout(() => {
-          if (statusEl.textContent === text) {
-            statusEl.textContent = 'Мультисубтитры';
-          }
-        }, 2000);
+      let toast = shadow.getElementById('sc-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'sc-toast';
+        toast.className = 'sc-toast';
+        if (SC.widgetEl) SC.widgetEl.appendChild(toast);
+        else shadow.appendChild(toast);
       }
+      toast.textContent = text;
+      toast.classList.add('sc-toast-visible');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('sc-toast-visible');
+      }, 1800);
     }
 
     // Clear history
@@ -829,13 +983,15 @@
   // Draggable logic for widget window header
   SC.setupDraggable = function(element, handle) {
     let isDragging = false;
+    let hasMoved = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
 
     handle.addEventListener('mousedown', (e) => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button, select, input, a')) return;
 
       isDragging = true;
+      hasMoved = false;
       startX = e.clientX;
       startY = e.clientY;
 
@@ -843,15 +999,17 @@
       initialLeft = rect.left;
       initialTop = rect.top;
 
-      element.style.bottom = 'auto';
-      element.style.right = 'auto';
-      element.style.left = `${initialLeft}px`;
-      element.style.top = `${initialTop}px`;
-
       const onMouseMove = (ev) => {
         if (!isDragging) return;
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
+
+        if (!hasMoved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        if (!hasMoved) {
+          hasMoved = true;
+          element.style.bottom = 'auto';
+          element.style.right = 'auto';
+        }
 
         let newLeft = initialLeft + dx;
         let newTop = initialTop + dy;

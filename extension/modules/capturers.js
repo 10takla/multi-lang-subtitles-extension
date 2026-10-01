@@ -148,65 +148,98 @@
     return list;
   };
 
-  // Extract YouTube caption tracks from player APIs, window object, or script tags
+  // Bridge between YouTube page context (MAIN world) and extension (ISOLATED world)
+  let ytBridgeInjected = false;
+  SC.initYouTubeBridge = function() {
+    if (!location.hostname.includes('youtube.com') || ytBridgeInjected) return;
+    ytBridgeInjected = true;
+
+    window.addEventListener('message', (event) => {
+      if (event.source !== window || !event.data || event.data.type !== '__SC_YT_TRACKS__') return;
+      const tracks = event.data.tracks;
+      if (Array.isArray(tracks) && tracks.length > 0) {
+        SC.ytCaptionTracks = tracks;
+        const activeVideo = SC.getActiveVideo();
+        if (activeVideo && SC.registerVideoWithSubtitles) {
+          SC.registerVideoWithSubtitles(activeVideo);
+        }
+        if (SC.renderLanguageList) SC.renderLanguageList();
+
+        // Auto-load primary track timedtext if not loaded yet
+        const primaryTrack = tracks[0];
+        const primaryTrackId = `yt:${primaryTrack.languageCode || 0}`;
+        if (!SC.ytTrackCues.has(primaryTrackId)) {
+          SC.loadYouTubeTimedText(primaryTrack, primaryTrackId);
+        }
+      }
+    });
+
+    try {
+      const script = document.createElement('script');
+      script.textContent = `
+        (() => {
+          function getTracks() {
+            try {
+              const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+              if (player && typeof player.getPlayerResponse === 'function') {
+                const resp = player.getPlayerResponse();
+                const tracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+                if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+              }
+              const initTracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+              if (Array.isArray(initTracks) && initTracks.length > 0) return initTracks;
+            } catch (_) {}
+            return null;
+          }
+
+          function broadcast() {
+            const tracks = getTracks();
+            if (tracks && tracks.length > 0) {
+              window.postMessage({ type: '__SC_YT_TRACKS__', tracks: JSON.parse(JSON.stringify(tracks)) }, '*');
+            }
+          }
+
+          window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === '__SC_REQ_YT_TRACKS__') broadcast();
+          });
+          document.addEventListener('yt-navigate-finish', () => setTimeout(broadcast, 500));
+          document.addEventListener('yt-page-data-updated', () => setTimeout(broadcast, 500));
+
+          let attempts = 0;
+          const timer = setInterval(() => {
+            attempts++;
+            const t = getTracks();
+            if (t && t.length > 0) {
+              broadcast();
+              clearInterval(timer);
+            } else if (attempts > 30) {
+              clearInterval(timer);
+            }
+          }, 500);
+          broadcast();
+        })();
+      `;
+      (document.head || document.documentElement).appendChild(script);
+      script.remove();
+    } catch (_) {}
+  };
+
+  // Extract YouTube caption tracks from player APIs or bridge
   let lastYtFetchTime = 0;
   SC.fetchYouTubeCaptionTracks = function() {
     if (!location.hostname.includes('youtube.com')) return [];
+    SC.initYouTubeBridge();
     if (SC.ytCaptionTracks.length > 0) return SC.ytCaptionTracks;
+
     const now = Date.now();
-    if (now - lastYtFetchTime < 5000) return [];
-    lastYtFetchTime = now;
+    if (now - lastYtFetchTime >= 1000) {
+      lastYtFetchTime = now;
+      try {
+        window.postMessage({ type: '__SC_REQ_YT_TRACKS__' }, '*');
+      } catch (_) {}
+    }
 
-    // 1. Try movie_player element APIs
-    try {
-      const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-      if (player) {
-        if (typeof player.getPlayerResponse === 'function') {
-          const resp = player.getPlayerResponse();
-          const tracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          if (Array.isArray(tracks) && tracks.length > 0) {
-            SC.ytCaptionTracks = tracks;
-            return SC.ytCaptionTracks;
-          }
-        }
-        if (typeof player.getOption === 'function') {
-          const tracklist = player.getOption('captions', 'tracklist');
-          if (Array.isArray(tracklist) && tracklist.length > 0) {
-            SC.ytCaptionTracks = tracklist;
-            return SC.ytCaptionTracks;
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 2. Try window ytInitialPlayerResponse
-    try {
-      const tracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (Array.isArray(tracks) && tracks.length > 0) {
-        SC.ytCaptionTracks = tracks;
-        return SC.ytCaptionTracks;
-      }
-    } catch (_) {}
-
-    // 3. Fallback: parse scripts in DOM
-    try {
-      const scripts = document.getElementsByTagName('script');
-      for (let i = 0; i < scripts.length; i++) {
-        const txt = scripts[i].textContent;
-        if (txt && txt.includes('"captionTracks"')) {
-          const match = txt.match(/"captionTracks":\s*(\[[^\]]+\])/);
-          if (match && match[1]) {
-            const parsed = JSON.parse(match[1]);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              SC.ytCaptionTracks = parsed;
-              return SC.ytCaptionTracks;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    return [];
+    return SC.ytCaptionTracks || [];
   };
 
   // Load YouTube timed text cues via JSON3 format
@@ -607,6 +640,7 @@
     let ytDebounceTimer = null;
 
     function checkYouTubeCaptions() {
+      if (SC.ytActiveCues && SC.ytActiveCues.length > 0) return;
       const visualLines = document.querySelectorAll('.caption-visual-line');
       const video = document.querySelector('video') || SC.getActiveVideo();
       const videoTime = video ? video.currentTime : null;

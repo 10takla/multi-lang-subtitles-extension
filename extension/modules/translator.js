@@ -135,8 +135,8 @@
       // Sort so the immediate upcoming cues are fetched first
       needed.sort((a, b) => a.cue.start - b.cue.start);
 
-      // Fetch at most 6 nearest cues to prevent network saturation
-      const batch = needed.slice(0, 6);
+      // Fetch up to 30 nearest upcoming cues (covering full 30-60s buffer)
+      const batch = needed.slice(0, 30);
       for (let i = 0; i < batch.length; i++) {
         SC.fetchTranslation(batch[i].text, normTargetLang, normSourceLang);
       }

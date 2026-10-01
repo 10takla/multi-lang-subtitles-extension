@@ -56,29 +56,21 @@
     const oW = SC.overlayEl.offsetWidth || 260;
     const oH = SC.overlayEl.offsetHeight || 50;
 
-    let posX = 0;
-    let posY = 0;
+    // 0-100% positioning within video window boundaries (ai_instrs/_.md:24)
+    const posXPercent = typeof SC.state.overlayPosX === 'number' ? SC.state.overlayPosX : 50;
+    const posYPercent = typeof SC.state.overlayPosY === 'number' ? SC.state.overlayPosY : 90;
 
-    if (SC.state.videoOverlayPosition === 'custom' && SC.state.customOverlayPos) {
-      posX = vRect.left + SC.state.customOverlayPos.relX * vRect.width;
-      posY = vRect.top + SC.state.customOverlayPos.relY * vRect.height;
-    } else if (SC.state.videoOverlayPosition === 'top') {
-      posX = vRect.left + (vRect.width - oW) / 2;
-      posY = vRect.top + Math.max(12, vRect.height * 0.08);
-    } else if (SC.state.videoOverlayPosition === 'center') {
-      posX = vRect.left + (vRect.width - oW) / 2;
-      posY = vRect.top + (vRect.height - oH) / 2;
-    } else {
-      // Default: 'bottom'
-      posX = vRect.left + (vRect.width - oW) / 2;
-      posY = vRect.bottom - oH - Math.max(12, vRect.height * 0.08);
-    }
+    const availW = Math.max(0, vRect.width - oW);
+    const availH = Math.max(0, vRect.height - oH);
+
+    let posX = vRect.left + (availW * posXPercent) / 100;
+    let posY = vRect.top + (availH * posYPercent) / 100;
 
     // Strict containment within the video boundaries ("в рамках окна видео")
-    const minX = vRect.left + 8;
-    const maxX = Math.max(minX, vRect.right - oW - 8);
-    const minY = vRect.top + 8;
-    const maxY = Math.max(minY, vRect.bottom - oH - 8);
+    const minX = vRect.left;
+    const maxX = Math.max(minX, vRect.right - oW);
+    const minY = vRect.top;
+    const maxY = Math.max(minY, vRect.bottom - oH);
 
     posX = Math.max(minX, Math.min(maxX, posX));
     posY = Math.max(minY, Math.min(maxY, posY));
@@ -101,14 +93,18 @@
       return;
     }
 
+    const showTags = Boolean(SC.state.showLanguageTags);
+    linesContainer.classList.toggle('sc-with-tags', showTags);
+
     const entries = [];
     SC.state.languages.forEach(item => {
       if (!item.visible) return;
 
       if (item.type === 'source') {
+        const tagHTML = showTags ? '<span class="sc-vol-tag">ОРИГ</span>' : '';
         entries.push(`
           <div class="sc-vol-line sc-vol-source">
-            <span class="sc-vol-tag">ОРИГ</span>
+            ${tagHTML}
             <span class="sc-vol-text">${SC.escapeHtml(activeLine.text)}</span>
           </div>
         `);
@@ -119,9 +115,10 @@
         const avail = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
         const found = avail.find(a => a.value === item.lang);
         const tag = (found ? found.label.replace(/^\[.*?\]\s*/, '') : (item.label || 'ТРЕК')).slice(0, 5).toUpperCase();
+        const tagHTML = showTags ? `<span class="sc-vol-tag">${SC.escapeHtml(tag)}</span>` : '';
         entries.push(`
           <div class="sc-vol-line sc-vol-track">
-            <span class="sc-vol-tag">${SC.escapeHtml(tag)}</span>
+            ${tagHTML}
             <span class="sc-vol-text">${SC.escapeHtml(trackText)}</span>
           </div>
         `);
@@ -130,9 +127,10 @@
           ? (activeLine.translations[item.id] || activeLine.translations[item.lang])
           : null;
         const tag = SC.getLangName(item.lang).slice(0, 3).toUpperCase();
+        const tagHTML = showTags ? `<span class="sc-vol-tag">${tag}</span>` : '';
         entries.push(`
           <div class="sc-vol-line sc-vol-trans">
-            <span class="sc-vol-tag">${tag}</span>
+            ${tagHTML}
             <span class="sc-vol-text">${transText ? SC.escapeHtml(transText) : '<span class="sc-vol-loading">...</span>'}</span>
           </div>
         `);
@@ -180,17 +178,17 @@
         let newTop = startTop + dy;
 
         // Clamp to video bounds
-        newLeft = Math.max(vRect.left + 8, Math.min(vRect.right - oW - 8, newLeft));
-        newTop = Math.max(vRect.top + 8, Math.min(vRect.bottom - oH - 8, newTop));
+        newLeft = Math.max(vRect.left, Math.min(vRect.right - oW, newLeft));
+        newTop = Math.max(vRect.top, Math.min(vRect.bottom - oH, newTop));
 
         element.style.left = `${Math.round(newLeft)}px`;
         element.style.top = `${Math.round(newTop)}px`;
 
-        SC.state.videoOverlayPosition = 'custom';
-        SC.state.customOverlayPos = {
-          relX: (newLeft - vRect.left) / Math.max(1, vRect.width),
-          relY: (newTop - vRect.top) / Math.max(1, vRect.height)
-        };
+        const availW = Math.max(1, vRect.width - oW);
+        const availH = Math.max(1, vRect.height - oH);
+        SC.state.overlayPosX = Math.round(Math.max(0, Math.min(100, ((newLeft - vRect.left) / availW) * 100)));
+        SC.state.overlayPosY = Math.round(Math.max(0, Math.min(100, ((newTop - vRect.top) / availH) * 100)));
+        if (SC.syncPositionSliders) SC.syncPositionSliders();
       };
 
       const onMouseUp = () => {
