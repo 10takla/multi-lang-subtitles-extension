@@ -9,16 +9,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { text, targetLang, sourceLang = 'auto' } = message;
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
     fetch(url)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
-        let translated = text;
+        let translated = '';
         if (data && Array.isArray(data[0])) {
-          translated = data[0].map(chunk => chunk[0] || '').join('');
+          translated = data[0].map(chunk => (chunk && chunk[0]) ? chunk[0] : '').join('').trim();
         }
-        sendResponse({ success: true, translated });
+        if (translated && (translated !== text || sourceLang === targetLang)) {
+          sendResponse({ success: true, translated });
+        } else {
+          sendResponse({ success: false, error: 'Empty or untranslated response', translated: null });
+        }
       })
       .catch(err => {
-        sendResponse({ success: false, error: err.message, translated: text });
+        sendResponse({ success: false, error: err.message, translated: null });
       });
     return true; // Keep message channel open for async response
   }

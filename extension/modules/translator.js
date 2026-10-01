@@ -7,69 +7,183 @@
   window.__SC = window.__SC || {};
   const SC = window.__SC;
 
+  const inFlightRequests = new Map();
+
   // Translate text via background script with fallback to direct Google Translate GTX
   SC.fetchTranslation = async function(text, targetLang, sourceLang = 'auto') {
-    if (!text || !targetLang) return text;
-    const cacheKey = `${sourceLang}_${targetLang}_${text}`;
+    if (!text || !targetLang) return null;
+    const cleanSourceText = SC.cleanText(text);
+    if (!cleanSourceText) return null;
+
+    const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
+    const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
+
+    if (normSourceLang !== 'auto' && normTargetLang !== 'auto' && normSourceLang === normTargetLang) {
+      return cleanSourceText;
+    }
+
+    const cacheKey = `${normSourceLang}_${normTargetLang}_${cleanSourceText}`;
     if (SC.state.translationCache.has(cacheKey)) {
       return SC.state.translationCache.get(cacheKey);
     }
+    if (inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey);
+    }
 
-    return new Promise((resolve) => {
-      try {
-        chrome.runtime.sendMessage(
-          { type: 'TRANSLATE_TEXT', text, targetLang, sourceLang },
-          (response) => {
-            if (chrome.runtime.lastError || !response || !response.success) {
-              // Direct fetch fallback
-              const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
-              fetch(url)
-                .then(r => r.json())
-                .then(d => {
-                  const res = d && Array.isArray(d[0]) ? d[0].map(c => c[0] || '').join('') : text;
-                  SC.state.translationCache.set(cacheKey, res);
-                  resolve(res);
-                })
-                .catch(() => resolve(text));
-            } else {
-              const res = response.translated || text;
+    const promise = new Promise((resolve) => {
+      const doDirectFetch = () => {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(normSourceLang)}&tl=${encodeURIComponent(normTargetLang)}&dt=t&q=${encodeURIComponent(cleanSourceText)}`;
+        fetch(url)
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          })
+          .then(d => {
+            let res = '';
+            if (d && Array.isArray(d[0])) {
+              res = d[0].map(c => (c && c[0]) ? c[0] : '').join('').trim();
+            }
+            // CRITICAL: Only cache if valid translation received! Never cache fallback original text!
+            if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
               SC.state.translationCache.set(cacheKey, res);
               resolve(res);
+            } else {
+              resolve(null);
             }
-          }
-        );
-      } catch (_) {
-        resolve(text);
+          })
+          .catch(() => resolve(null));
+      };
+
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        try {
+          chrome.runtime.sendMessage(
+            { type: 'TRANSLATE_TEXT', text: cleanSourceText, targetLang: normTargetLang, sourceLang: normSourceLang },
+            (response) => {
+              if (chrome.runtime.lastError || !response || !response.success || !response.translated) {
+                doDirectFetch();
+              } else {
+                const res = String(response.translated).trim();
+                if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
+                  SC.state.translationCache.set(cacheKey, res);
+                  resolve(res);
+                } else {
+                  doDirectFetch();
+                }
+              }
+            }
+          );
+        } catch (_) {
+          doDirectFetch();
+        }
+      } else {
+        doDirectFetch();
       }
+    }).finally(() => {
+      inFlightRequests.delete(cacheKey);
+    });
+
+    inFlightRequests.set(cacheKey, promise);
+    return promise;
+  };
+
+  // Prefetch translations for upcoming subtitle cues ahead of time (30-60s buffer)
+  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferSeconds = 60) {
+    if (!SC.getUpcomingCues) return;
+
+    const translationItems = SC.state.languages.filter(l => l.type === 'translation' && (l.mode === 'trans' || !l.mode));
+    if (translationItems.length === 0) return;
+
+    const activeVideo = SC.getActiveVideo();
+    const t = (currentTime !== null && currentTime !== undefined)
+      ? currentTime
+      : (activeVideo ? activeVideo.currentTime : 0);
+
+    const sourceItem = SC.state.languages.find(l => l.type === 'source');
+    const defaultSourceTrack = sourceItem ? sourceItem.lang : 'auto';
+
+    translationItems.forEach(item => {
+      const targetLang = item.lang;
+      if (!targetLang) return;
+
+      const sourceTrack = (item.sourceFrom && item.sourceFrom !== 'auto') ? item.sourceFrom : defaultSourceTrack;
+      const sourceLang = SC.resolveTrackLang ? SC.resolveTrackLang(sourceTrack) : 'auto';
+
+      if (sourceLang !== 'auto' && targetLang !== 'auto' && sourceLang === targetLang) {
+        return;
+      }
+
+      const upcomingCues = SC.getUpcomingCues(t, bufferSeconds, sourceTrack);
+      if (!upcomingCues || upcomingCues.length === 0) return;
+
+      upcomingCues.forEach(cue => {
+        const sourceText = SC.cleanText(cue.text);
+        if (!sourceText) return;
+
+        const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
+        const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
+
+        const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
+        if (!SC.state.translationCache.has(cacheKey) && !inFlightRequests.has(cacheKey)) {
+          SC.fetchTranslation(sourceText, normTargetLang, normSourceLang);
+        }
+      });
     });
   };
 
   // Re-translate lines for a specific language configuration item
   SC.retranslateItem = function(item) {
     if (!item || item.mode === 'track') return;
+    const sourceItem = SC.state.languages.find(l => l.type === 'source');
+    const defaultSourceTrack = sourceItem ? sourceItem.lang : 'auto';
+    const sourceTrack = (item.sourceFrom && item.sourceFrom !== 'auto') ? item.sourceFrom : defaultSourceTrack;
+    const sourceLang = SC.resolveTrackLang ? SC.resolveTrackLang(sourceTrack) : 'auto';
+    const targetLang = item.lang;
+    if (!targetLang) return;
+
+    const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
+    const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
+
     SC.state.lines.forEach(l => {
       let sourceText = l.text;
-      let sourceLang = 'auto';
+      if (sourceTrack && sourceTrack !== 'auto' && l.trackTexts && l.trackTexts[sourceTrack]) {
+        sourceText = l.trackTexts[sourceTrack];
+      }
+      sourceText = SC.cleanText(sourceText);
+      if (!sourceText) return;
 
-      if (item.sourceFrom && item.sourceFrom !== 'auto') {
-        if (l.trackTexts && l.trackTexts[item.sourceFrom]) {
-          sourceText = l.trackTexts[item.sourceFrom];
+      if (!l.translations) l.translations = {};
+
+      if (normSourceLang !== 'auto' && normTargetLang !== 'auto' && normSourceLang === normTargetLang) {
+        l.translations[item.id] = sourceText;
+        l.translations[normTargetLang] = sourceText;
+        if (SC.updateTranslationInDOM) {
+          SC.updateTranslationInDOM(l.id, item.id, sourceText);
         }
-        if (item.sourceFrom.startsWith('yt:')) {
-          sourceLang = item.sourceFrom.replace('yt:', '');
-        } else if (item.sourceFrom.startsWith('track:')) {
-          sourceLang = item.sourceFrom.replace('track:', '');
-        }
+        return;
       }
 
-      SC.fetchTranslation(sourceText, item.lang, sourceLang).then(trans => {
-        if (!l.translations) l.translations = {};
+      const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
+      if (SC.state.translationCache.has(cacheKey)) {
+        const trans = SC.state.translationCache.get(cacheKey);
         l.translations[item.id] = trans;
-        l.translations[item.lang] = trans;
+        l.translations[normTargetLang] = trans;
         if (SC.updateTranslationInDOM) {
           SC.updateTranslationInDOM(l.id, item.id, trans);
         }
-      });
+      } else {
+        SC.fetchTranslation(sourceText, normTargetLang, normSourceLang).then(trans => {
+          if (trans && (trans !== sourceText || normSourceLang === normTargetLang)) {
+            l.translations[item.id] = trans;
+            l.translations[normTargetLang] = trans;
+            if (SC.updateTranslationInDOM) {
+              SC.updateTranslationInDOM(l.id, item.id, trans);
+            }
+            if (SC.updateVideoOverlayContent && SC.state.currentActiveLine && SC.state.currentActiveLine.id === l.id) {
+              SC.updateVideoOverlayContent();
+            }
+          }
+        });
+      }
     });
   };
 
@@ -78,33 +192,56 @@
     if (!line || !line.text) return;
     if (!line.translations) line.translations = {};
 
+    const sourceItem = SC.state.languages.find(l => l.type === 'source');
+    const defaultSourceTrack = sourceItem ? sourceItem.lang : 'auto';
+
     SC.state.languages.forEach(langItem => {
       if (langItem.type === 'translation' && (langItem.mode === 'trans' || !langItem.mode)) {
         const langCode = langItem.lang;
-        const sourceFrom = langItem.sourceFrom || 'auto';
+        if (!langCode) return;
+
+        const sourceTrack = (langItem.sourceFrom && langItem.sourceFrom !== 'auto')
+          ? langItem.sourceFrom
+          : defaultSourceTrack;
+
+        const sourceLang = SC.resolveTrackLang ? SC.resolveTrackLang(sourceTrack) : 'auto';
 
         let sourceText = line.text;
-        let sourceLang = 'auto';
+        if (sourceTrack && sourceTrack !== 'auto' && line.trackTexts && line.trackTexts[sourceTrack]) {
+          sourceText = line.trackTexts[sourceTrack];
+        }
+        sourceText = SC.cleanText(sourceText);
+        if (!sourceText) return;
 
-        if (sourceFrom !== 'auto') {
-          if (line.trackTexts && line.trackTexts[sourceFrom]) {
-            sourceText = line.trackTexts[sourceFrom];
-          }
-          if (sourceFrom.startsWith('yt:')) {
-            sourceLang = sourceFrom.replace('yt:', '');
-          } else if (sourceFrom.startsWith('track:')) {
-            sourceLang = sourceFrom.replace('track:', '');
-          }
+        const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
+        const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(langCode) : langCode;
+
+        if (normSourceLang !== 'auto' && normTargetLang !== 'auto' && normSourceLang === normTargetLang) {
+          line.translations[langItem.id] = sourceText;
+          line.translations[normTargetLang] = sourceText;
+          return;
         }
 
         if (!line.translations[langItem.id]) {
-          SC.fetchTranslation(sourceText, langCode, sourceLang).then(trans => {
-            line.translations[langItem.id] = trans;
-            line.translations[langItem.lang] = trans;
-            if (SC.updateTranslationInDOM) {
-              SC.updateTranslationInDOM(line.id, langItem.id, trans);
-            }
-          });
+          const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
+          if (SC.state.translationCache.has(cacheKey)) {
+            const cached = SC.state.translationCache.get(cacheKey);
+            line.translations[langItem.id] = cached;
+            line.translations[normTargetLang] = cached;
+          } else {
+            SC.fetchTranslation(sourceText, normTargetLang, normSourceLang).then(trans => {
+              if (trans && (trans !== sourceText || normSourceLang === normTargetLang)) {
+                line.translations[langItem.id] = trans;
+                line.translations[normTargetLang] = trans;
+                if (SC.updateTranslationInDOM) {
+                  SC.updateTranslationInDOM(line.id, langItem.id, trans);
+                }
+                if (SC.updateVideoOverlayContent && SC.state.currentActiveLine && SC.state.currentActiveLine.id === line.id) {
+                  SC.updateVideoOverlayContent();
+                }
+              }
+            });
+          }
         }
       }
     });

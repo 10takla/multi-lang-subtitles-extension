@@ -85,6 +85,7 @@
     SC.overlayEl.style.left = `${Math.round(posX)}px`;
     SC.overlayEl.style.top = `${Math.round(posY)}px`;
     SC.overlayEl.classList.remove('sc-hidden');
+    if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
   };
 
   // Render content of active subtitle line on video overlay

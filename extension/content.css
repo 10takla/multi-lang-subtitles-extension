@@ -10,12 +10,12 @@
 }
 
 /* All pointer-events inside the shadow root are re-enabled */
-.sc-widget, .sc-launcher-btn, .sc-video-overlay {
+.sc-widget, .sc-launcher-btn, .sc-video-overlay, .sc-video-badge-btn {
   pointer-events: auto !important;
   box-sizing: border-box !important;
 }
 
-.sc-widget *, .sc-launcher-btn *, .sc-video-overlay * {
+.sc-widget *, .sc-launcher-btn *, .sc-video-overlay *, .sc-video-badge-btn * {
   box-sizing: border-box !important;
 }
 
@@ -292,6 +292,42 @@
 
 .sc-launcher-btn.sc-hidden {
   display: none !important;
+}
+
+/* Floating Video Subtitle Icon Button */
+.sc-video-badge-btn {
+  position: fixed !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  background: rgba(18, 20, 26, 0.88) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #f1f3f9 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  z-index: 2147483645 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease !important;
+  padding: 0 !important;
+  outline: none !important;
+  user-select: none !important;
+}
+
+.sc-video-badge-btn:hover {
+  background: rgba(24, 119, 242, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  transform: scale(1.08) !important;
+}
+
+.sc-video-badge-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  fill: currentColor !important;
+  pointer-events: none !important;
 }
 
 /* Language Bar & Multi-subtitles Controls */

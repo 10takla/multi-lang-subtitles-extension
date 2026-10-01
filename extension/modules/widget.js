@@ -13,6 +13,85 @@
   SC.listEl = null;
   SC.countBadge = null;
   SC.launcherBtn = null;
+  SC.videoIcons = new Map();
+
+  // Open control panel
+  SC.openWidget = function() {
+    SC.state.widgetVisible = true;
+    if (SC.widgetEl) {
+      SC.widgetEl.classList.remove('sc-hidden');
+      if (SC.state.minimized) {
+        SC.state.minimized = false;
+        SC.widgetEl.classList.remove('sc-minimized');
+        const minBtn = SC.shadowRoot?.getElementById('sc-btn-minimize');
+        if (minBtn) minBtn.textContent = '_';
+      }
+    }
+    if (SC.launcherBtn) {
+      SC.launcherBtn.classList.add('sc-hidden');
+    }
+    if (SC.state.autoScroll && SC.scrollListToBottom) {
+      SC.scrollListToBottom();
+    }
+  };
+
+  // Close control panel
+  SC.closeWidget = function() {
+    SC.state.widgetVisible = false;
+    if (SC.widgetEl) {
+      SC.widgetEl.classList.add('sc-hidden');
+    }
+    if (SC.launcherBtn) {
+      SC.launcherBtn.classList.remove('sc-hidden');
+    }
+  };
+
+  // Register video as having detected subtitles and create on-video launcher icon
+  SC.registerVideoWithSubtitles = function(video) {
+    if (!video || !SC.shadowRoot) return;
+    if (SC.videoIcons.has(video)) return;
+
+    const iconBtn = document.createElement('button');
+    iconBtn.className = 'sc-video-badge-btn';
+    iconBtn.title = 'Открыть панель субтитров';
+    iconBtn.innerHTML = `
+      <svg viewBox="0 0 24 24">
+        <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
+      </svg>
+    `;
+
+    iconBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      SC.state.activeVideo = video;
+      SC.openWidget();
+    });
+
+    SC.shadowRoot.appendChild(iconBtn);
+    SC.videoIcons.set(video, iconBtn);
+    SC.updateVideoIconsPosition();
+  };
+
+  // Update positions for all on-video launcher icons
+  SC.updateVideoIconsPosition = function() {
+    if (!SC.videoIcons || SC.videoIcons.size === 0) return;
+    for (const [video, btn] of SC.videoIcons.entries()) {
+      if (!document.contains(video)) {
+        btn.remove();
+        SC.videoIcons.delete(video);
+        continue;
+      }
+
+      const rect = video.getBoundingClientRect();
+      if (rect.width < 50 || rect.height < 50 || rect.bottom < 0 || rect.top > window.innerHeight) {
+        btn.style.display = 'none';
+        continue;
+      }
+
+      btn.style.display = 'flex';
+      btn.style.top = `${Math.round(rect.top + 10)}px`;
+      btn.style.left = `${Math.round(rect.right - 42)}px`;
+    }
+  };
 
   // Initialize the in-page floating widget within Shadow DOM
   SC.initInPageWidget = function() {
@@ -29,7 +108,9 @@
     // Load stylesheet into Shadow DOM
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = chrome.runtime.getURL('content.css');
+    link.href = (typeof chrome !== 'undefined' && chrome.runtime?.getURL)
+      ? chrome.runtime.getURL('content.css')
+      : '/extension/content.css';
     shadow.appendChild(link);
 
     // Create Widget
@@ -276,6 +357,10 @@
               if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.sourceFrom);
             }
             if (SC.retranslateItem) SC.retranslateItem(item);
+            if (SC.prefetchUpcomingTranslations) {
+              const v = SC.getActiveVideo();
+              SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+            }
             SC.renderAllLines();
           });
           controls.appendChild(sourceSelect);
@@ -302,6 +387,10 @@
           targetSelect.addEventListener('change', (e) => {
             item.lang = e.target.value;
             if (SC.retranslateItem) SC.retranslateItem(item);
+            if (SC.prefetchUpcomingTranslations) {
+              const v = SC.getActiveVideo();
+              SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+            }
             SC.renderAllLines();
           });
           controls.appendChild(targetSelect);
@@ -319,8 +408,14 @@
             }
           } else {
             item.sourceFrom = 'auto';
-            item.lang = (item.lang && !item.lang.includes(':')) ? item.lang : 'ru';
+            const detectedSource = SC.resolveTrackLang ? SC.resolveTrackLang('auto') : 'auto';
+            const suggested = SC.getSuggestedTargetLang ? SC.getSuggestedTargetLang() : 'en';
+            item.lang = (item.lang && !item.lang.includes(':') && item.lang !== detectedSource) ? item.lang : suggested;
             if (SC.retranslateItem) SC.retranslateItem(item);
+            if (SC.prefetchUpcomingTranslations) {
+              const v = SC.getActiveVideo();
+              SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+            }
           }
           SC.renderLanguageList();
           SC.renderAllLines();
@@ -572,7 +667,9 @@
     SC.updateBadge();
 
     try {
-      chrome.runtime.sendMessage({ type: 'RESET_COUNT' }).catch(() => {});
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'RESET_COUNT' }).catch(() => {});
+      }
     } catch (_) {}
   };
 
@@ -602,20 +699,23 @@
     // Add translation language
     if (addLangBtn) {
       addLangBtn.addEventListener('click', () => {
-        const existingCodes = new Set(SC.state.languages.map(l => l.lang));
-        const nextLang = SC.AVAILABLE_LANGUAGES.find(l => !existingCodes.has(l.code)) || SC.AVAILABLE_LANGUAGES[0];
+        const nextLangCode = SC.getSuggestedTargetLang ? SC.getSuggestedTargetLang() : 'en';
 
         const newTrans = {
           id: `trans_${Date.now()}`,
           type: 'translation',
           mode: 'trans',
           sourceFrom: 'auto',
-          lang: nextLang.code,
+          lang: nextLangCode,
           visible: true
         };
         SC.state.languages.push(newTrans);
         SC.renderLanguageList();
         if (SC.retranslateItem) SC.retranslateItem(newTrans);
+        if (SC.prefetchUpcomingTranslations) {
+          const v = SC.getActiveVideo();
+          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+        }
         SC.renderAllLines();
       });
     }
@@ -650,17 +750,12 @@
 
     // Close to launcher
     closeBtn.addEventListener('click', () => {
-      SC.state.widgetVisible = false;
-      SC.widgetEl.classList.add('sc-hidden');
-      SC.launcherBtn.classList.remove('sc-hidden');
+      SC.closeWidget();
     });
 
     // Launcher click to reopen
     SC.launcherBtn.addEventListener('click', () => {
-      SC.state.widgetVisible = true;
-      SC.widgetEl.classList.remove('sc-hidden');
-      SC.launcherBtn.classList.add('sc-hidden');
-      if (SC.state.autoScroll) SC.scrollListToBottom();
+      SC.openWidget();
     });
 
     // Video Subtitles Position control (bottom -> center -> top -> bottom)

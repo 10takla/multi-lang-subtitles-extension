@@ -8,14 +8,15 @@
   if (!SC) return;
 
   // Extension runtime message listener for popup interaction
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    const isTopFrame = window.self === window.top;
-    const activeVideo = SC.getActiveVideo();
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage && chrome.runtime.onMessage.addListener) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      const isTopFrame = window.self === window.top;
+      const activeVideo = SC.getActiveVideo();
 
-    // Prevent non-video iframes from overriding main frame response
-    if (!isTopFrame && !activeVideo) {
-      return false;
-    }
+      // Prevent non-video iframes from overriding main frame response
+      if (!isTopFrame && !activeVideo) {
+        return false;
+      }
 
     if (message.type === 'GET_SUBTITLES') {
       sendResponse({
@@ -34,20 +35,16 @@
     }
 
     if (message.type === 'TOGGLE_WIDGET') {
-      SC.state.widgetVisible = !SC.state.widgetVisible;
-      if (SC.widgetEl && SC.launcherBtn) {
-        if (SC.state.widgetVisible) {
-          SC.widgetEl.classList.remove('sc-hidden');
-          SC.launcherBtn.classList.add('sc-hidden');
-        } else {
-          SC.widgetEl.classList.add('sc-hidden');
-          SC.launcherBtn.classList.remove('sc-hidden');
-        }
+      if (SC.state.widgetVisible) {
+        if (SC.closeWidget) SC.closeWidget();
+      } else {
+        if (SC.openWidget) SC.openWidget();
       }
       sendResponse({ widgetVisible: SC.state.widgetVisible });
       return true;
     }
   });
+  }
 
   // App initialization
   function init() {
@@ -55,9 +52,14 @@
     SC.scanForVideos();
     SC.setupDOMSubtitleObserver();
 
-    // Keep on-video overlay strictly aligned with video bounds on resize/scroll/fullscreen
-    window.addEventListener('resize', SC.updateVideoOverlayPosition, { passive: true });
-    window.addEventListener('scroll', SC.updateVideoOverlayPosition, { passive: true });
+    const updateAllPositions = () => {
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
+    };
+
+    // Keep on-video overlay and video icons strictly aligned with video bounds on resize/scroll/fullscreen
+    window.addEventListener('resize', updateAllPositions, { passive: true });
+    window.addEventListener('scroll', updateAllPositions, { passive: true });
 
     const handleFsChange = () => {
       const fsElem = document.fullscreenElement || document.webkitFullscreenElement;
@@ -68,7 +70,7 @@
       } else if (SC.hostEl && SC.hostEl.parentNode !== document.body && SC.hostEl.parentNode !== document.documentElement) {
         (document.body || document.documentElement).appendChild(SC.hostEl);
       }
-      setTimeout(SC.updateVideoOverlayPosition, 100);
+      setTimeout(updateAllPositions, 100);
     };
 
     document.addEventListener('fullscreenchange', handleFsChange);
@@ -83,4 +85,6 @@
   } else {
     init();
   }
+
+  window.__subtitlesCapturerInjected = true;
 })();

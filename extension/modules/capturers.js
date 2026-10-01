@@ -54,8 +54,8 @@
     if (trackId.startsWith('yt:')) {
       const cues = SC.ytTrackCues.get(trackId);
       if (cues && cues.length > 0) {
-        const match = cues.find(c => time >= c.start && time <= c.end);
-        if (match) return match.text;
+        const match = cues.find(c => time >= c.start - 0.05 && time <= c.end + 0.05);
+        if (match) return SC.cleanText(match.text);
       }
     } else if (trackId.startsWith('track:')) {
       const activeVideo = SC.getActiveVideo();
@@ -66,8 +66,9 @@
           if (val === trackId && tr.cues) {
             for (let j = 0; j < tr.cues.length; j++) {
               const c = tr.cues[j];
-              if (time >= c.startTime && time <= c.endTime) {
-                return c.text;
+              if (time >= c.startTime - 0.05 && time <= c.endTime + 0.05) {
+                const raw = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
+                return SC.cleanText(raw);
               }
             }
           }
@@ -77,31 +78,113 @@
     return null;
   };
 
-  // Auto-enable YouTube subtitles without requiring manual UI click
-  SC.tryEnableYouTubeSubtitles = function(video) {
-    if (!location.hostname.includes('youtube.com')) return;
-    const ccButtons = [
-      document.querySelector('.ytp-subtitles-button'),
-      video?.closest('.html5-video-player')?.querySelector('.ytp-subtitles-button'),
-      document.querySelector('ytd-player .ytp-subtitles-button'),
-      document.querySelector('ytd-shorts .ytp-subtitles-button'),
-      document.querySelector('button[aria-label*="субтитр" i], button[aria-label*="subtitles" i], button[aria-label*="captions" i]')
-    ];
-    for (const btn of ccButtons) {
-      if (btn && btn.getAttribute('aria-pressed') === 'false') {
-        try {
-          btn.click();
-          break;
-        } catch (_) {}
+  // Get upcoming cues for prefetching translations (ahead of current playback)
+  SC.getUpcomingCues = function(currentTime = null, bufferSeconds = 60, targetTrackId = null) {
+    const activeVideo = SC.getActiveVideo();
+    const t = (currentTime !== null && currentTime !== undefined)
+      ? currentTime
+      : (activeVideo ? activeVideo.currentTime : 0);
+    const maxTime = t + bufferSeconds;
+    const list = [];
+    const seen = new Set();
+
+    // 1. YouTube cues
+    if (targetTrackId && targetTrackId.startsWith('yt:')) {
+      const cues = SC.ytTrackCues.get(targetTrackId);
+      if (cues && cues.length > 0) {
+        for (let i = 0; i < cues.length; i++) {
+          const c = cues[i];
+          if (c.end >= t && c.start <= maxTime) {
+            const raw = SC.cleanText(c.text);
+            if (raw && !seen.has(raw)) {
+              seen.add(raw);
+              list.push({ start: c.start, end: c.end, text: raw });
+            }
+          }
+        }
+      }
+    } else if (SC.ytActiveCues && SC.ytActiveCues.length > 0 && (!targetTrackId || targetTrackId === 'auto')) {
+      for (let i = 0; i < SC.ytActiveCues.length; i++) {
+        const c = SC.ytActiveCues[i];
+        if (c.end >= t && c.start <= maxTime) {
+          const raw = SC.cleanText(c.text);
+          if (raw && !seen.has(raw)) {
+            seen.add(raw);
+            list.push({ start: c.start, end: c.end, text: raw });
+          }
+        }
       }
     }
+
+    // 2. HTML5 textTracks cues
+    if (activeVideo && activeVideo.textTracks && activeVideo.textTracks.length > 0) {
+      for (let i = 0; i < activeVideo.textTracks.length; i++) {
+        const tr = activeVideo.textTracks[i];
+        const val = `track:${tr.language || i}`;
+        // If a specific track is requested, only collect cues from that track
+        if (targetTrackId && targetTrackId !== 'auto' && targetTrackId !== val) {
+          continue;
+        }
+
+        if (tr.cues) {
+          for (let j = 0; j < tr.cues.length; j++) {
+            const c = tr.cues[j];
+            if (c.endTime >= t && c.startTime <= maxTime) {
+              const raw = SC.cleanText(c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : ''));
+              if (raw && !seen.has(raw)) {
+                seen.add(raw);
+                list.push({
+                  start: c.startTime,
+                  end: c.endTime,
+                  text: raw
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return list;
   };
 
-  // Extract YouTube caption tracks from ytInitialPlayerResponse in page scripts
+  // Extract YouTube caption tracks from player APIs, window object, or script tags
   SC.fetchYouTubeCaptionTracks = function() {
     if (!location.hostname.includes('youtube.com')) return [];
     if (SC.ytCaptionTracks.length > 0) return SC.ytCaptionTracks;
 
+    // 1. Try movie_player element APIs
+    try {
+      const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+      if (player) {
+        if (typeof player.getPlayerResponse === 'function') {
+          const resp = player.getPlayerResponse();
+          const tracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            SC.ytCaptionTracks = tracks;
+            return SC.ytCaptionTracks;
+          }
+        }
+        if (typeof player.getOption === 'function') {
+          const tracklist = player.getOption('captions', 'tracklist');
+          if (Array.isArray(tracklist) && tracklist.length > 0) {
+            SC.ytCaptionTracks = tracklist;
+            return SC.ytCaptionTracks;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Try window ytInitialPlayerResponse
+    try {
+      const tracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (Array.isArray(tracks) && tracks.length > 0) {
+        SC.ytCaptionTracks = tracks;
+        return SC.ytCaptionTracks;
+      }
+    } catch (_) {}
+
+    // 3. Fallback: parse scripts in DOM
     try {
       const scripts = document.getElementsByTagName('script');
       for (let i = 0; i < scripts.length; i++) {
@@ -118,6 +201,7 @@
         }
       }
     } catch (_) {}
+
     return [];
   };
 
@@ -148,6 +232,11 @@
           SC.ytActiveCues = cues;
         }
 
+        const activeVideo = SC.getActiveVideo();
+        if (activeVideo && SC.registerVideoWithSubtitles) {
+          SC.registerVideoWithSubtitles(activeVideo);
+        }
+
         SC.state.lines.forEach(l => {
           if (!l.trackTexts) l.trackTexts = {};
           if (!l.trackTexts[tId]) {
@@ -165,9 +254,14 @@
         if (SC.renderAllLines) {
           SC.renderAllLines();
         }
+
+        if (SC.prefetchUpcomingTranslations) {
+          const v = SC.getActiveVideo();
+          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+        }
       }
     } catch (err) {
-      SC.tryEnableYouTubeSubtitles();
+      console.warn('Timed text load error:', err);
     }
   };
 
@@ -177,6 +271,9 @@
     if (!text) return;
 
     const activeVideo = SC.getActiveVideo();
+    if (activeVideo && SC.registerVideoWithSubtitles) {
+      SC.registerVideoWithSubtitles(activeVideo);
+    }
     const currentVideoTime = videoTimestamp !== null
       ? videoTimestamp
       : (activeVideo ? activeVideo.currentTime : 0);
@@ -273,40 +370,55 @@
 
     // Notify background script
     try {
-      chrome.runtime.sendMessage({ type: 'SUBTITLE_ADDED', line: newLine }).catch(() => {});
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'SUBTITLE_ADDED', line: newLine }).catch(() => {});
+      }
     } catch (_) {}
 
     SC.broadcastLineUpdate(newLine, true);
   };
+
+  // Native subtitles suppression no-op (Rule 24: extension does not alter native subtitle state)
+  SC.suppressNativeSubtitles = function() {};
 
   // Hook into HTML5 TextTrack
   SC.hookTrack = function(video, track) {
     if (!track || SC.hookedTracks.has(track)) return;
     SC.hookedTracks.add(track);
 
+    if (video && SC.registerVideoWithSubtitles) {
+      SC.registerVideoWithSubtitles(video);
+    }
+
+    // Keep track in 'hidden' mode if disabled so cues are active without showing native subtitles,
+    // but DO NOT alter 'showing' mode (Rule 24: independence from native subtitles).
     if (track.mode === 'disabled') {
       try { track.mode = 'hidden'; } catch (_) {}
     }
 
     const handleCueChange = () => {
+      const sourceItem = SC.state.languages.find(l => l.type === 'source');
+      const trackVal = `track:${track.language || 0}`;
+      if (sourceItem && sourceItem.lang !== 'auto' && sourceItem.lang !== trackVal) {
+        return;
+      }
+
       if (track.activeCues && track.activeCues.length > 0) {
         for (let i = 0; i < track.activeCues.length; i++) {
           const cue = track.activeCues[i];
           const raw = cue.text || (cue.getCueAsHTML ? cue.getCueAsHTML().textContent : '');
           if (!raw) continue;
-
-          const lines = raw.split(/\r\n|\r|\n/);
-          lines.forEach(l => {
-            if (l.trim()) {
-              SC.addSubtitleLine(l, video.currentTime);
-            }
-          });
+          SC.addSubtitleLine(raw, video.currentTime);
         }
       }
     };
 
     track.addEventListener('cuechange', handleCueChange);
     handleCueChange();
+
+    if (SC.prefetchUpcomingTranslations) {
+      SC.prefetchUpcomingTranslations(video.currentTime, 60);
+    }
   };
 
   // Hook into HTML5 video element
@@ -314,8 +426,11 @@
     if (!video || SC.hookedVideos.has(video)) return;
     SC.hookedVideos.add(video);
 
+    if (video.textTracks && video.textTracks.length > 0 && SC.registerVideoWithSubtitles) {
+      SC.registerVideoWithSubtitles(video);
+    }
+
     if (location.hostname.includes('youtube.com')) {
-      SC.tryEnableYouTubeSubtitles(video);
       const tracks = SC.fetchYouTubeCaptionTracks();
       if (tracks.length > 0) {
         SC.loadYouTubeTimedText(tracks[0], `yt:${tracks[0].languageCode || 0}`);
@@ -323,37 +438,94 @@
       }
     }
 
-    // Timeupdate listener for direct YouTube timedtext cues
+    const ensureHiddenMode = (tr) => {
+      if (tr && tr.mode === 'disabled') {
+        try { tr.mode = 'hidden'; } catch (_) {}
+      }
+    };
+
+    // Timeupdate listener for direct YouTube timedtext cues, HTML5 textTracks, and prefetching
+    let lastPrefetchTime = -999;
     video.addEventListener('timeupdate', () => {
+      const t = video.currentTime;
+
+      // 1. YouTube direct timedtext cues
       if (SC.ytActiveCues.length > 0) {
-        const t = video.currentTime;
         const match = SC.ytActiveCues.find(c => t >= c.start && t <= c.end);
         if (match) {
           SC.addSubtitleLine(match.text, match.start);
         }
+      }
+
+      // 2. HTML5 TextTrack cues (ensures capture even when video subtitles are toggled off in player)
+      if (video.textTracks && video.textTracks.length > 0) {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          const tr = video.textTracks[i];
+          ensureHiddenMode(tr);
+          if (tr.cues && tr.cues.length > 0) {
+            for (let j = 0; j < tr.cues.length; j++) {
+              const c = tr.cues[j];
+              if (t >= c.startTime && t <= c.endTime) {
+                const raw = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
+                if (raw) {
+                  const sourceItem = SC.state.languages.find(l => l.type === 'source');
+                  const trackVal = `track:${tr.language || i}`;
+                  if (!sourceItem || sourceItem.lang === 'auto' || sourceItem.lang === trackVal) {
+                    SC.addSubtitleLine(raw, c.startTime);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Prefetch upcoming translations periodically (every ~2.5 seconds)
+      if (Math.abs(t - lastPrefetchTime) >= 2.5) {
+        lastPrefetchTime = t;
+        if (SC.prefetchUpcomingTranslations) {
+          SC.prefetchUpcomingTranslations(t, 60);
+        }
+      }
+
+      if (SC.updateVideoIconsPosition) {
+        SC.updateVideoIconsPosition();
       }
     });
 
     if (SC.videoResizeObserver) {
       try { SC.videoResizeObserver.observe(video); } catch (_) {}
     }
-    video.addEventListener('play', () => { if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition(); });
-    video.addEventListener('seeked', () => { if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition(); });
+    video.addEventListener('play', () => {
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 60);
+    });
+    video.addEventListener('seeked', () => {
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 60);
+    });
 
     // Hook existing textTracks
     if (video.textTracks) {
       for (let i = 0; i < video.textTracks.length; i++) {
         const tr = video.textTracks[i];
-        if (tr.mode === 'disabled') {
-          try { tr.mode = 'hidden'; } catch (_) {}
-        }
+        ensureHiddenMode(tr);
         SC.hookTrack(video, tr);
       }
       video.textTracks.addEventListener('addtrack', (e) => {
-        if (e.track && e.track.mode === 'disabled') {
-          try { e.track.mode = 'hidden'; } catch (_) {}
+        if (e.track) {
+          ensureHiddenMode(e.track);
+          SC.hookTrack(video, e.track);
         }
-        SC.hookTrack(video, e.track);
+      });
+      video.textTracks.addEventListener('change', () => {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          const tr = video.textTracks[i];
+          ensureHiddenMode(tr);
+          SC.hookTrack(video, tr);
+        }
       });
     }
 
@@ -362,9 +534,7 @@
       if (video.textTracks) {
         for (let i = 0; i < video.textTracks.length; i++) {
           const tr = video.textTracks[i];
-          if (tr.mode === 'disabled') {
-            try { tr.mode = 'hidden'; } catch (_) {}
-          }
+          ensureHiddenMode(tr);
           SC.hookTrack(video, tr);
         }
       }
@@ -376,9 +546,6 @@
   SC.scanForVideos = function() {
     const videos = document.querySelectorAll('video');
     videos.forEach(SC.hookVideo);
-    if (location.hostname.includes('youtube.com')) {
-      SC.tryEnableYouTubeSubtitles();
-    }
   };
 
   // DOM-Based Subtitle Detection (YouTube, Netflix, player caption windows)

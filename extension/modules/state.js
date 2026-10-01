@@ -31,6 +31,87 @@
     return found ? found.name : code;
   };
 
+  // Normalize language code to standard 2-3 letter code or 'auto'
+  SC.normalizeLangCode = function(raw) {
+    if (!raw || typeof raw !== 'string') return 'auto';
+    const cleaned = raw.trim().toLowerCase();
+    if (!cleaned || cleaned === 'auto' || /^\d+$/.test(cleaned)) return 'auto';
+    if (cleaned === 'zh-cn' || cleaned === 'zh_cn') return 'zh-CN';
+    if (cleaned === 'zh-tw' || cleaned === 'zh_tw') return 'zh-TW';
+    const match = cleaned.match(/^([a-z]{2,3})/);
+    return match ? match[1] : 'auto';
+  };
+
+  // Resolve language code from a track identifier (e.g. 'track:ru', 'yt:en', 'track:0', 'auto')
+  SC.resolveTrackLang = function(trackId) {
+    if (!trackId || trackId === 'auto') {
+      const sourceItem = SC.state.languages?.find(l => l.type === 'source');
+      if (sourceItem && sourceItem.lang && sourceItem.lang !== 'auto' && sourceItem.lang !== trackId) {
+        return SC.resolveTrackLang(sourceItem.lang);
+      }
+      const video = SC.getActiveVideo();
+      if (video && video.textTracks && video.textTracks.length > 0) {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          const lang = video.textTracks[i].language;
+          if (lang && lang.trim()) {
+            const norm = SC.normalizeLangCode(lang);
+            if (norm !== 'auto') return norm;
+          }
+        }
+      }
+      if (SC.ytCaptionTracks && SC.ytCaptionTracks.length > 0) {
+        const ytLang = SC.ytCaptionTracks[0].languageCode;
+        if (ytLang) {
+          const norm = SC.normalizeLangCode(ytLang);
+          if (norm !== 'auto') return norm;
+        }
+      }
+      return 'auto';
+    }
+
+    if (trackId.startsWith('yt:')) {
+      const code = trackId.replace('yt:', '');
+      return SC.normalizeLangCode(code);
+    }
+
+    if (trackId.startsWith('track:')) {
+      const suffix = trackId.replace('track:', '');
+      if (/^\d+$/.test(suffix)) {
+        const idx = parseInt(suffix, 10);
+        const video = SC.getActiveVideo();
+        if (video && video.textTracks && video.textTracks[idx]) {
+          const trLang = video.textTracks[idx].language;
+          if (trLang && trLang.trim()) {
+            return SC.normalizeLangCode(trLang);
+          }
+        }
+        return 'auto';
+      }
+      return SC.normalizeLangCode(suffix);
+    }
+
+    return SC.normalizeLangCode(trackId);
+  };
+
+  // Suggest a translation target language that is different from the source video language
+  SC.getSuggestedTargetLang = function() {
+    const detectedSource = SC.resolveTrackLang('auto');
+    const existingTransCodes = new Set(
+      SC.state.languages
+        .filter(l => l.type === 'translation')
+        .map(l => l.lang)
+    );
+
+    const candidate = SC.AVAILABLE_LANGUAGES.find(l => {
+      if (existingTransCodes.has(l.code)) return false;
+      if (detectedSource !== 'auto' && (l.code === detectedSource || detectedSource.startsWith(l.code))) return false;
+      return true;
+    });
+
+    if (candidate) return candidate.code;
+    return detectedSource === 'ru' ? 'en' : 'ru';
+  };
+
   // State container
   SC.state = {
     lines: [],
@@ -50,7 +131,8 @@
     videoOverlayPosition: 'bottom', // 'bottom' | 'center' | 'top' | 'custom'
     customOverlayPos: null,
     currentActiveLine: null,
-    overlayFadeTimeout: null
+    overlayFadeTimeout: null,
+    activeVideo: null
   };
 
   // Helper: Format seconds to MM:SS or HH:MM:SS
@@ -69,6 +151,9 @@
 
   // Find currently active or playing video element
   SC.getActiveVideo = function() {
+    if (SC.state.activeVideo && document.contains(SC.state.activeVideo)) {
+      return SC.state.activeVideo;
+    }
     const videos = Array.from(document.querySelectorAll('video'));
     if (!videos.length) return null;
     const playing = videos.find((v) => !v.paused && !v.ended && v.readyState > 2);
@@ -113,10 +198,12 @@
   // Broadcast line update to open popup if any
   SC.broadcastLineUpdate = function(line, isNew = false) {
     try {
-      chrome.runtime.sendMessage({
-        type: isNew ? 'NEW_LINE' : 'UPDATE_LINE',
-        line: line
-      }).catch(() => {});
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: isNew ? 'NEW_LINE' : 'UPDATE_LINE',
+          line: line
+        }).catch(() => {});
+      }
     } catch (_) {}
   };
 })();

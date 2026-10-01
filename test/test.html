@@ -42,7 +42,7 @@
     const video = document.getElementById('test-video');
     // Добавляем дорожку программно через VTTCue для предотвращения CORS/origin ошибок в file://
     const track = video.addTextTrack('subtitles', 'Русский', 'ru');
-    track.mode = 'showing';
+    track.mode = 'disabled';
     track.addCue(new VTTCue(0.5, 3.0, 'Первая строка тестовых субтитров'));
     track.addCue(new VTTCue(3.5, 6.0, 'Вторая строка: отслеживание работает'));
     track.addCue(new VTTCue(6.5, 9.5, 'Третья строка: субтитры успешно захвачены'));
