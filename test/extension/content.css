@@ -636,9 +636,9 @@
   display: flex !important;
   flex-direction: column !important;
   gap: 4px !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   justify-content: center !important;
-  text-align: center !important;
+  text-align: left !important;
   z-index: 2147483646 !important;
   transition: opacity 0.15s ease;
   user-select: none !important;
@@ -659,6 +659,7 @@
   flex-direction: column !important;
   gap: 3px !important;
   width: 100% !important;
+  text-align: left !important;
 }
 
 /* Alignment along boundary between tag and subtitle (ai_instrs/_.md:23) */
@@ -687,10 +688,11 @@
 .sc-vol-line {
   display: flex !important;
   align-items: baseline !important;
-  justify-content: center !important;
+  justify-content: flex-start !important;
   gap: 6px !important;
   width: 100% !important;
   line-height: 1.35 !important;
+  text-align: left !important;
 }
 
 .sc-vol-tag {
@@ -725,6 +727,7 @@
   color: #ffffff !important;
   word-break: break-word !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+  text-align: left !important;
 }
 
 .sc-vol-trans .sc-vol-text {

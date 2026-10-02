@@ -32,6 +32,9 @@
       "js": [
         "modules/state.js",
         "modules/translator.js",
+        "modules/capturers/youtube.js",
+        "modules/capturers/html5.js",
+        "modules/capturers/custom.js",
         "modules/capturers.js",
         "modules/overlay.js",
         "modules/widget.js",
