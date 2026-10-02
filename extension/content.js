@@ -7,10 +7,58 @@
   const SC = window.__SC;
   if (!SC) return;
 
+  // Cross-frame state coordination for embedded video players
+  const isTopFrame = window.self === window.top;
+  let latestChildFrameData = null;
+
+  function broadcastFrameUpdate() {
+    if (!isTopFrame) {
+      try {
+        const activeVideo = SC.getActiveVideo();
+        window.parent.postMessage({
+          type: '__SC_CHILD_FRAME_UPDATE__',
+          lines: SC.state.lines,
+          videoDetected: !!activeVideo,
+          videoTime: activeVideo ? SC.formatTime(activeVideo.currentTime) : null,
+          widgetVisible: SC.state.widgetVisible
+        }, '*');
+      } catch (_) {}
+    }
+  }
+
+  // Hook line additions to notify parent frame
+  const originalAddSubtitleLine = SC.addSubtitleLine;
+  if (originalAddSubtitleLine) {
+    SC.addSubtitleLine = function(rawText, videoTimestamp = null) {
+      originalAddSubtitleLine(rawText, videoTimestamp);
+      broadcastFrameUpdate();
+    };
+  }
+
+  window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === '__SC_CHILD_FRAME_UPDATE__') {
+      latestChildFrameData = e.data;
+      if (!isTopFrame) {
+        // Relay upward if middle frame
+        try { window.parent.postMessage(e.data, '*'); } catch (_) {}
+      }
+    } else if (e.data.type === '__SC_FORWARD_POPUP_CMD__') {
+      if (e.data.cmd === 'TOGGLE_WIDGET') {
+        if (SC.state.widgetVisible) {
+          if (SC.closeWidget) SC.closeWidget();
+        } else {
+          if (SC.openWidget) SC.openWidget();
+        }
+      } else if (e.data.cmd === 'CLEAR_SUBTITLES') {
+        if (SC.clearAllSubtitles) SC.clearAllSubtitles();
+      }
+    }
+  });
+
   // Extension runtime message listener for popup interaction
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage && chrome.runtime.onMessage.addListener) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      const isTopFrame = window.self === window.top;
       const activeVideo = SC.getActiveVideo();
 
       // Prevent non-video iframes from overriding main frame response
@@ -18,32 +66,53 @@
         return false;
       }
 
-    if (message.type === 'GET_SUBTITLES') {
-      sendResponse({
-        lines: SC.state.lines,
-        videoDetected: !!activeVideo,
-        videoTime: activeVideo ? SC.formatTime(activeVideo.currentTime) : null,
-        widgetVisible: SC.state.widgetVisible
-      });
-      return true;
-    }
-
-    if (message.type === 'CLEAR_SUBTITLES') {
-      SC.clearAllSubtitles();
-      sendResponse({ success: true });
-      return true;
-    }
-
-    if (message.type === 'TOGGLE_WIDGET') {
-      if (SC.state.widgetVisible) {
-        if (SC.closeWidget) SC.closeWidget();
-      } else {
-        if (SC.openWidget) SC.openWidget();
+      if (message.type === 'GET_SUBTITLES') {
+        if (activeVideo || (SC.state.lines && SC.state.lines.length > 0) || !latestChildFrameData) {
+          sendResponse({
+            lines: SC.state.lines,
+            videoDetected: !!activeVideo,
+            videoTime: activeVideo ? SC.formatTime(activeVideo.currentTime) : null,
+            widgetVisible: SC.state.widgetVisible
+          });
+        } else {
+          sendResponse({
+            lines: latestChildFrameData.lines || [],
+            videoDetected: Boolean(latestChildFrameData.videoDetected),
+            videoTime: latestChildFrameData.videoTime || null,
+            widgetVisible: Boolean(latestChildFrameData.widgetVisible)
+          });
+        }
+        return true;
       }
-      sendResponse({ widgetVisible: SC.state.widgetVisible });
-      return true;
-    }
-  });
+
+      if (message.type === 'CLEAR_SUBTITLES') {
+        SC.clearAllSubtitles();
+        // Forward to iframes
+        document.querySelectorAll('iframe').forEach(f => {
+          try { f.contentWindow.postMessage({ type: '__SC_FORWARD_POPUP_CMD__', cmd: 'CLEAR_SUBTITLES' }, '*'); } catch (_) {}
+        });
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (message.type === 'TOGGLE_WIDGET') {
+        if (activeVideo || !latestChildFrameData) {
+          if (SC.state.widgetVisible) {
+            if (SC.closeWidget) SC.closeWidget();
+          } else {
+            if (SC.openWidget) SC.openWidget();
+          }
+          sendResponse({ widgetVisible: SC.state.widgetVisible });
+        } else {
+          // Forward toggle command to iframes
+          document.querySelectorAll('iframe').forEach(f => {
+            try { f.contentWindow.postMessage({ type: '__SC_FORWARD_POPUP_CMD__', cmd: 'TOGGLE_WIDGET' }, '*'); } catch (_) {}
+          });
+          sendResponse({ widgetVisible: !latestChildFrameData.widgetVisible });
+        }
+        return true;
+      }
+    });
   }
 
   // App initialization
@@ -51,6 +120,7 @@
     if (SC.initYouTubeBridge) SC.initYouTubeBridge();
     SC.initInPageWidget();
     SC.scanForVideos();
+    if (SC.scanPageForSubtitleTracks) SC.scanPageForSubtitleTracks();
     SC.setupDOMSubtitleObserver();
 
     // Keep on-video overlay and video icons strictly aligned with video bounds on resize/scroll/fullscreen
@@ -72,8 +142,12 @@
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
 
-    // Periodic fallback sweep for dynamically injected video elements (DOM mutations handle immediate adds)
-    setInterval(SC.scanForVideos, 8000);
+    // Periodic fallback sweep for dynamically injected video elements and tracks
+    setInterval(() => {
+      SC.scanForVideos();
+      if (SC.scanPageForSubtitleTracks) SC.scanPageForSubtitleTracks();
+      broadcastFrameUpdate();
+    }, 5000);
   }
 
   if (document.readyState === 'loading') {

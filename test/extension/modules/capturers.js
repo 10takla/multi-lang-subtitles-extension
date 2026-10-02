@@ -12,9 +12,12 @@
   SC.ytCaptionTracks = [];
   SC.ytActiveCues = [];
   SC.ytTrackCues = new Map();
+  SC.customCaptionTracks = [];
+  SC.customActiveCues = [];
+  SC.customTrackCues = new Map();
   let ytCurrentLoadedTrackUrl = null;
 
-  // Retrieve available video tracks from HTML5 video and YouTube
+  // Retrieve available video tracks from HTML5 video, YouTube, and detected player tracks
   SC.getAvailableVideoTracks = function() {
     const activeVideo = SC.getActiveVideo();
     const tracks = [];
@@ -27,6 +30,15 @@
           label: `[Видео] ${tr.label || tr.language || 'Трек ' + (i + 1)}`
         });
       }
+    }
+
+    if (SC.customCaptionTracks && SC.customCaptionTracks.length > 0) {
+      SC.customCaptionTracks.forEach((cTr, idx) => {
+        tracks.push({
+          value: cTr.id || `custom:${idx}`,
+          label: `[Плеер] ${cTr.label || 'Субтитры ' + (idx + 1)}`
+        });
+      });
     }
 
     if (SC.ytCaptionTracks.length === 0) {
@@ -51,7 +63,13 @@
   SC.getTrackTextAtTime = function(trackId, time) {
     if (!trackId || trackId === 'auto') return null;
 
-    if (trackId.startsWith('yt:')) {
+    if (trackId.startsWith('custom:')) {
+      const cues = SC.customTrackCues.get(trackId);
+      if (cues && cues.length > 0) {
+        const match = cues.find(c => time >= c.start - 0.05 && time <= c.end + 0.05);
+        if (match) return SC.cleanText(match.text);
+      }
+    } else if (trackId.startsWith('yt:')) {
       const cues = SC.ytTrackCues.get(trackId);
       if (cues && cues.length > 0) {
         const match = cues.find(c => time >= c.start - 0.05 && time <= c.end + 0.05);
@@ -116,7 +134,35 @@
       }
     }
 
-    // 2. HTML5 textTracks cues
+    // 2. Custom & Playerjs cues
+    if (targetTrackId && targetTrackId.startsWith('custom:')) {
+      const cues = SC.customTrackCues.get(targetTrackId);
+      if (cues && cues.length > 0) {
+        for (let i = 0; i < cues.length; i++) {
+          const c = cues[i];
+          if (c.end >= t && c.start <= maxTime) {
+            const raw = SC.cleanText(c.text);
+            if (raw && !seen.has(raw)) {
+              seen.add(raw);
+              list.push({ start: c.start, end: c.end, text: raw });
+            }
+          }
+        }
+      }
+    } else if (SC.customActiveCues && SC.customActiveCues.length > 0 && (!targetTrackId || targetTrackId === 'auto')) {
+      for (let i = 0; i < SC.customActiveCues.length; i++) {
+        const c = SC.customActiveCues[i];
+        if (c.end >= t && c.start <= maxTime) {
+          const raw = SC.cleanText(c.text);
+          if (raw && !seen.has(raw)) {
+            seen.add(raw);
+            list.push({ start: c.start, end: c.end, text: raw });
+          }
+        }
+      }
+    }
+
+    // 3. HTML5 textTracks cues
     if (activeVideo && activeVideo.textTracks && activeVideo.textTracks.length > 0) {
       for (let i = 0; i < activeVideo.textTracks.length; i++) {
         const tr = activeVideo.textTracks[i];
@@ -303,6 +349,182 @@
     }
   };
 
+  // Parse WebVTT subtitle text into cue objects
+  SC.parseVttCues = function(vttText) {
+    if (!vttText || typeof vttText !== 'string') return [];
+    const cues = [];
+    const lines = vttText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    let currentStart = null;
+    let currentEnd = null;
+    let currentTexts = [];
+
+    const timeToSecs = (str) => {
+      const parts = str.trim().split(':');
+      if (parts.length === 3) {
+        return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+      } else if (parts.length === 2) {
+        return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+      }
+      return 0;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes('-->')) {
+        const times = line.split('-->');
+        currentStart = timeToSecs(times[0]);
+        const endStr = times[1].trim().split(/\s+/)[0];
+        currentEnd = timeToSecs(endStr);
+        currentTexts = [];
+      } else if (currentStart !== null && line) {
+        if (line.startsWith('NOTE') || line.startsWith('WEBVTT') || /^\d+$/.test(line)) continue;
+        currentTexts.push(line);
+      } else if (currentStart !== null && !line) {
+        if (currentTexts.length > 0) {
+          const cueText = SC.cleanText(currentTexts.join(' '));
+          if (cueText) {
+            cues.push({ start: currentStart, end: currentEnd, text: cueText });
+          }
+        }
+        currentStart = null;
+        currentEnd = null;
+        currentTexts = [];
+      }
+    }
+    if (currentStart !== null && currentTexts.length > 0) {
+      const cueText = SC.cleanText(currentTexts.join(' '));
+      if (cueText) {
+        cues.push({ start: currentStart, end: currentEnd, text: cueText });
+      }
+    }
+    return cues;
+  };
+
+  // Fetch and parse WebVTT track from external or inline URL
+  SC.loadCustomSubtitleUrl = async function(url, trackId, label = 'Субтитры') {
+    if (!url || SC.customTrackCues.has(trackId)) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const text = await res.text();
+      const cues = SC.parseVttCues(text);
+      if (cues && cues.length > 0) {
+        SC.customTrackCues.set(trackId, cues);
+        if (!SC.customActiveCues || SC.customActiveCues.length === 0) {
+          SC.customActiveCues = cues;
+        }
+        const activeVideo = SC.getActiveVideo();
+        if (activeVideo && SC.registerVideoWithSubtitles) {
+          SC.registerVideoWithSubtitles(activeVideo);
+        }
+        if (SC.renderLanguageList) SC.renderLanguageList();
+        if (SC.prefetchUpcomingTranslations) {
+          SC.prefetchUpcomingTranslations(activeVideo ? activeVideo.currentTime : 0, 60);
+        }
+      }
+    } catch (_) {}
+  };
+
+  // Scan page scripts and elements for embedded or configured subtitle files (Playerjs, etc.)
+  let lastScriptScanCount = 0;
+  SC.scanPageForSubtitleTracks = function() {
+    const scripts = document.querySelectorAll('script');
+    if (scripts.length === lastScriptScanCount && SC.customCaptionTracks.length > 0) return;
+    lastScriptScanCount = scripts.length;
+
+    scripts.forEach((s, idx) => {
+      const content = s.textContent || '';
+      if (!content || (!content.includes('subtitle') && !content.includes('.vtt') && !content.includes('.srt'))) return;
+
+      const matches = content.matchAll(/subtitle[s]?\s*:\s*['"]([^'"]+)['"]/gi);
+      for (const m of matches) {
+        const raw = m[1];
+        const parts = raw.split(',');
+        parts.forEach((p, pIdx) => {
+          let label = 'Субтитры';
+          let url = p.trim();
+          const titleMatch = p.match(/\[(.*?)\](.*)/);
+          if (titleMatch) {
+            label = titleMatch[1].trim();
+            url = titleMatch[2].trim();
+          }
+          if (url && (url.includes('.vtt') || url.includes('.srt') || url.startsWith('http') || url.startsWith('/'))) {
+            const trackId = `custom:${idx}_${pIdx}`;
+            if (!SC.customCaptionTracks.some(t => t.url === url)) {
+              SC.customCaptionTracks.push({ id: trackId, label, url });
+              SC.loadCustomSubtitleUrl(url, trackId, label);
+            }
+          }
+        });
+      }
+    });
+
+    const tracks = document.querySelectorAll('track[src]');
+    tracks.forEach((tr, idx) => {
+      const src = tr.src || tr.getAttribute('src');
+      if (src) {
+        const trackId = `custom:track_${idx}`;
+        const label = tr.label || tr.srclang || `Дорожка ${idx + 1}`;
+        if (!SC.customCaptionTracks.some(t => t.url === src)) {
+          SC.customCaptionTracks.push({ id: trackId, label, url: src });
+          SC.loadCustomSubtitleUrl(src, trackId, label);
+        }
+      }
+    });
+  };
+
+  // Universal DOM subtitle extractor (Playerjs, Video.js, JW, Netflix, etc.)
+  SC.getDOMSubtitleText = function() {
+    if (location.hostname.includes('youtube.com')) {
+      const visualLines = document.querySelectorAll('.caption-visual-line');
+      if (visualLines.length > 0) {
+        const texts = Array.from(visualLines).map(l => (l.textContent || '').trim()).filter(Boolean);
+        if (texts.length > 0) return texts.join(' ');
+      }
+      const segments = document.querySelectorAll('.ytp-caption-segment');
+      if (segments.length > 0) {
+        const fullText = Array.from(segments).map(s => s.textContent || '').join(' ').trim();
+        if (fullText) return fullText;
+      }
+    }
+
+    const selectors = [
+      '[id*="_subtitle"]',
+      'pjsdiv[id*="subtitle"]',
+      '[class*="playerjs_subtitle"]',
+      '.playerjs_subtitle_word',
+      '.vjs-text-track-cue',
+      '.jw-text-track-cue',
+      '.shaka-text-container',
+      '.player-timedtext-text-container',
+      '.plyr__caption',
+      '.dplayer-subtitle',
+      '.art-subtitle',
+      '.mejs__captions-text',
+      '[class*="subtitle-cue"]',
+      '[class*="subtitle-line"]',
+      '[class*="subtitle-text"]',
+      '[class*="caption-text"]',
+      '[class*="caption-window"]'
+    ];
+
+    for (let i = 0; i < selectors.length; i++) {
+      const sel = selectors[i];
+      const els = document.querySelectorAll(sel);
+      for (let j = 0; j < els.length; j++) {
+        const el = els[j];
+        if (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0) continue;
+        const text = (el.innerText || el.textContent || '').trim();
+        if (!text || text.length < 2) continue;
+        if (text.includes('Скорость') || text.includes('Качество') || text.startsWith('Субтитры\n') || text === 'Вкл.' || text === 'Выкл.') {
+          continue;
+        }
+        return text.replace(/\s+/g, ' ');
+      }
+    }
+    return null;
+  };
+
   // Add a newly captured subtitle line into state and triggers rendering/translations
   SC.addSubtitleLine = function(rawText, videoTimestamp = null) {
     const text = SC.cleanText(rawText);
@@ -485,6 +707,10 @@
       SC.registerVideoWithSubtitles(video);
     }
 
+    if (SC.scanPageForSubtitleTracks) {
+      SC.scanPageForSubtitleTracks();
+    }
+
     if (location.hostname.includes('youtube.com')) {
       const tracks = SC.fetchYouTubeCaptionTracks();
       if (tracks.length > 0) {
@@ -518,7 +744,16 @@
         }
       }
 
-      // 2. HTML5 TextTrack cues (ensures capture even when video subtitles are toggled off in player)
+      // 2. Custom & Playerjs parsed cues
+      if (!matchedText && SC.customActiveCues && SC.customActiveCues.length > 0) {
+        const match = SC.customActiveCues.find(c => t >= c.start && t <= c.end);
+        if (match) {
+          matchedText = match.text;
+          matchedStart = match.start;
+        }
+      }
+
+      // 3. HTML5 TextTrack cues (ensures capture even when video subtitles are toggled off in player)
       if (!matchedText && video.textTracks && video.textTracks.length > 0) {
         const primarySelector = SC.state.languages.find(l => l.visible && (l.mode === 'track' || l.type === 'source'))
           || SC.state.languages[0];
@@ -553,6 +788,15 @@
             }
           }
           if (matchedText) break;
+        }
+      }
+
+      // 4. Live DOM subtitle text fallback (Playerjs, Video.js, JW Player, etc.)
+      if (!matchedText && SC.getDOMSubtitleText) {
+        const domText = SC.getDOMSubtitleText();
+        if (domText) {
+          matchedText = domText;
+          matchedStart = t;
         }
       }
 
@@ -628,23 +872,17 @@
     trackObserver.observe(video, { childList: true });
   };
 
-  // Scan page for video elements
+  // Scan page for video elements and subtitle tracks
   SC.scanForVideos = function() {
+    if (SC.scanPageForSubtitleTracks) {
+      SC.scanPageForSubtitleTracks();
+    }
     const videos = document.querySelectorAll('video');
     videos.forEach(SC.hookVideo);
   };
 
-  // DOM-Based Subtitle Detection (YouTube, Netflix, player caption windows)
+  // DOM-Based Subtitle Detection (YouTube, Netflix, player caption windows, Playerjs)
   SC.setupDOMSubtitleObserver = function() {
-    const captionSelectors = [
-      '.vjs-text-track-cue',
-      '.jw-text-track-cue',
-      '.shaka-text-container',
-      '.player-timedtext-text-container',
-      '[class*="subtitle-cue"]',
-      '[class*="subtitle-line"]'
-    ];
-
     let ytDebounceTimer = null;
 
     function checkYouTubeCaptions() {
@@ -686,7 +924,11 @@
                 checkVideos = true;
               }
               const cls = typeof node.className === 'string' ? node.className : '';
-              if (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('timedtext'))) {
+              const id = typeof node.id === 'string' ? node.id : '';
+              if (
+                (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('timedtext') || cls.includes('playerjs'))) ||
+                (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('timedtext') || id.includes('pjs_')))
+              ) {
                 checkYT = true;
                 checkGeneric = true;
               }
@@ -696,7 +938,11 @@
           const parent = m.target.parentElement;
           if (parent) {
             const cls = typeof parent.className === 'string' ? parent.className : '';
-            if (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('timedtext'))) {
+            const id = typeof parent.id === 'string' ? parent.id : '';
+            if (
+              (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('timedtext') || cls.includes('playerjs'))) ||
+              (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('timedtext') || id.includes('pjs_')))
+            ) {
               checkYT = true;
               checkGeneric = true;
             }
@@ -717,18 +963,11 @@
         }
       }
 
-      if (checkGeneric) {
-        for (let i = 0; i < captionSelectors.length; i++) {
-          const sel = captionSelectors[i];
-          const el = document.querySelector(sel);
-          if (el) {
-            const text = (el.textContent || '').trim();
-            if (text && text.length > 1) {
-              const video = SC.getActiveVideo();
-              SC.addSubtitleLine(text, video ? video.currentTime : null);
-              break;
-            }
-          }
+      if (checkGeneric && SC.getDOMSubtitleText) {
+        const text = SC.getDOMSubtitleText();
+        if (text && text.length > 1) {
+          const video = SC.getActiveVideo();
+          SC.addSubtitleLine(text, video ? video.currentTime : null);
         }
       }
     });
