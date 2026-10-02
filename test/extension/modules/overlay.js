@@ -36,8 +36,9 @@
   SC.updateVideoOverlayPosition = function() {
     if (!SC.overlayEl) return;
     const video = SC.getActiveVideo();
-    if (!video) {
+    if (!video || !SC.state.currentActiveLine) {
       SC.overlayEl.classList.add('sc-hidden');
+      if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
       return;
     }
 
@@ -89,6 +90,7 @@
 
     const activeLine = SC.state.currentActiveLine;
     if (!activeLine) {
+      linesContainer.innerHTML = '';
       SC.overlayEl.classList.add('sc-hidden');
       return;
     }
@@ -104,9 +106,12 @@
 
       if (item.mode === 'track' || (!item.mode && item.type === 'source')) {
         const trackVal = item.trackId || item.lang || 'auto';
-        const trackText = (activeLine.trackTexts && activeLine.trackTexts[trackVal])
+        let trackText = (activeLine.trackTexts && activeLine.trackTexts[trackVal])
           ? activeLine.trackTexts[trackVal]
           : activeLine.text;
+        trackText = (trackText || '').trim();
+        if (!trackText) return;
+
         const found = availTracks.find(a => a.value === trackVal);
         let tag = 'ТРЕК';
         if (found) {
@@ -128,6 +133,8 @@
         const transText = activeLine.translations
           ? (activeLine.translations[item.id] || activeLine.translations[targetLang])
           : null;
+        if (transText !== null && !transText.trim()) return;
+
         const tag = SC.getLangName(targetLang).slice(0, 3).toUpperCase();
         const tagHTML = showTags ? `<span class="sc-vol-tag">${tag}</span>` : '';
         entries.push(`
@@ -140,6 +147,7 @@
     });
 
     if (entries.length === 0) {
+      linesContainer.innerHTML = '';
       SC.overlayEl.classList.add('sc-hidden');
       return;
     }

@@ -42,6 +42,15 @@
       }
     }
 
+    // 4. Tracks from child iframe if any
+    if (SC.state && Array.isArray(SC.state.childTracks) && SC.state.childTracks.length > 0) {
+      SC.state.childTracks.forEach(ct => {
+        if (!tracks.some(t => t.value === ct.value)) {
+          tracks.push(ct);
+        }
+      });
+    }
+
     return tracks;
   };
 
@@ -120,14 +129,12 @@
   };
 
   /**
-   * Universal DOM subtitle extractor for non-YouTube players (Playerjs, Video.js, JW, Netflix, etc.)
+   * Universal DOM subtitle extractor for all players including YouTube, Playerjs, Video.js, JW, etc.
    */
   SC.getDOMSubtitleText = function() {
-    if (SC.isYouTubePage && SC.isYouTubePage()) {
-      return null;
-    }
-
     const selectors = [
+      '.ytp-caption-segment',
+      '.caption-window',
       '[id*="_subtitle"]',
       'pjsdiv[id*="subtitle"]',
       '[class*="playerjs_subtitle"]',
@@ -301,14 +308,53 @@
   SC.suppressNativeSubtitles = function() {};
 
   /**
+   * Comprehensive checker to determine if subtitles are available for a given video.
+   */
+  SC.checkVideoHasSubtitles = function(video) {
+    if (!video) return false;
+
+    // 1. Native HTML5 textTracks or <track> elements
+    if (video.textTracks && video.textTracks.length > 0) return true;
+    if (video.querySelectorAll && (video.querySelectorAll('track[src]').length > 0 || video.querySelectorAll('track').length > 0)) return true;
+
+    // 2. Custom player tracks already identified
+    if (SC.customCaptionTracks && SC.customCaptionTracks.length > 0) return true;
+
+    // 3. YouTube caption tracks or YouTube player CC indicator
+    if (SC.isYouTubePage && SC.isYouTubePage()) {
+      if (SC.ytCaptionTracks && SC.ytCaptionTracks.length > 0) return true;
+      const ytSubBtn = document.querySelector('.ytp-subtitles-button');
+      if (ytSubBtn && getComputedStyle(ytSubBtn).display !== 'none') return true;
+      if (SC.extractYouTubeTracksFromDOM && SC.extractYouTubeTracksFromDOM().length > 0) return true;
+      if (location.pathname.includes('/watch') || location.pathname.includes('/embed') || location.pathname.includes('/shorts')) {
+        return true;
+      }
+    }
+
+    // 4. Any captured lines or active cues already buffered
+    if (SC.state && SC.state.lines && SC.state.lines.length > 0) return true;
+    if (SC.customActiveCues && SC.customActiveCues.length > 0) return true;
+    if (SC.ytActiveCues && SC.ytActiveCues.length > 0) return true;
+
+    // 5. Player container subtitle clues
+    const container = video.closest('.html5-video-player, .player, [id*="player"], [class*="player"]') || video.parentElement;
+    if (container) {
+      if (container.querySelector('.ytp-caption-segment, .ytp-subtitles-button, [class*="subtitle"], [class*="caption"], [id*="subtitle"], [id*="caption"], [class*="pjs_"], track')) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  /**
    * Hooks into an HTML5 video element, registers listeners, and connects capturers.
    */
   SC.hookVideo = function(video) {
-    if (!video || SC.hookedVideos.has(video)) return;
-    SC.hookedVideos.add(video);
-
-    if (video.textTracks && video.textTracks.length > 0 && SC.registerVideoWithSubtitles) {
-      SC.registerVideoWithSubtitles(video);
+    if (!video) return;
+    const isFirstHook = !SC.hookedVideos.has(video);
+    if (isFirstHook) {
+      SC.hookedVideos.add(video);
     }
 
     if (SC.scanPageForSubtitleTracks) {
@@ -319,17 +365,41 @@
     if (SC.isYouTubePage && SC.isYouTubePage()) {
       if (SC.fetchYouTubeCaptionTracks) {
         const tracks = SC.fetchYouTubeCaptionTracks();
-        if (tracks.length > 0 && SC.loadYouTubeTimedText) {
-          SC.loadYouTubeTimedText(tracks[0], `yt:${tracks[0].languageCode || 0}`);
-          if (SC.renderLanguageList) SC.renderLanguageList();
+        if (tracks && tracks.length > 0) {
+          if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
+          if (SC.loadYouTubeTimedText) {
+            SC.loadYouTubeTimedText(tracks[0], `yt:${tracks[0].languageCode || 0}`);
+            if (SC.renderLanguageList) SC.renderLanguageList();
+          }
         }
       }
+    }
+
+    // Check if video has detected subtitles from any provider and register immediately
+    if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
+      if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
     }
 
     // Connect native HTML5 textTracks hook
     if (SC.hookHTML5Tracks) {
       SC.hookHTML5Tracks(video);
     }
+
+    if (!isFirstHook) return;
+
+    // Listen to video state changes to re-check subtitles
+    video.addEventListener('loadedmetadata', () => {
+      if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
+        if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
+      }
+      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+    });
+    video.addEventListener('play', () => {
+      if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
+        if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
+      }
+      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+    });
 
     // Timeupdate listener for direct YouTube cues, Custom cues, HTML5 cues, and DOM fallback
     let lastPrefetchTime = -999;
@@ -389,9 +459,11 @@
           SC.addSubtitleLine(matchedText, matchedStart);
         }
       } else {
-        if (lastMatchedCueText !== null) {
-          lastMatchedCueText = null;
-          lastMatchedCueStart = -1;
+        lastMatchedCueText = null;
+        lastMatchedCueStart = -1;
+        if (SC.state.currentActiveLine !== null) {
+          SC.state.currentActiveLine = null;
+          if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
         }
       }
 
@@ -414,6 +486,10 @@
     video.addEventListener('seeked', () => {
       lastMatchedCueText = null;
       lastMatchedCueStart = -1;
+      if (SC.state.currentActiveLine !== null) {
+        SC.state.currentActiveLine = null;
+        if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      }
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
       if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
     });
@@ -427,15 +503,18 @@
       SC.scanPageForSubtitleTracks();
     }
     const videos = document.querySelectorAll('video');
-    videos.forEach(SC.hookVideo);
+    videos.forEach(v => {
+      SC.hookVideo(v);
+      if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
+        if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(v);
+      }
+    });
   };
 
   /**
    * Sets up a MutationObserver for dynamically added videos and DOM captions.
    */
   SC.setupDOMSubtitleObserver = function() {
-    if (SC.isYouTubePage && SC.isYouTubePage()) return;
-
     const observer = new MutationObserver((mutations) => {
       let checkVideos = false;
       let checkGeneric = false;
@@ -446,13 +525,13 @@
           for (let j = 0; j < m.addedNodes.length; j++) {
             const node = m.addedNodes[j];
             if (node.nodeType === Node.ELEMENT_NODE) {
-              if (node.tagName === 'VIDEO' || (node.firstElementChild && node.querySelector('video'))) {
+              if (node.tagName === 'VIDEO' || node.tagName === 'TRACK' || (node.firstElementChild && node.querySelector('video, track'))) {
                 checkVideos = true;
               }
               const cls = typeof node.className === 'string' ? node.className : '';
               const id = typeof node.id === 'string' ? node.id : '';
               if (
-                (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs'))) ||
+                (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs') || cls.includes('ytp-subtitles-button'))) ||
                 (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('pjs_')))
               ) {
                 checkGeneric = true;
@@ -465,7 +544,7 @@
             const cls = typeof parent.className === 'string' ? parent.className : '';
             const id = typeof parent.id === 'string' ? parent.id : '';
             if (
-              (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs'))) ||
+              (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs') || cls.includes('ytp-subtitles-button'))) ||
               (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('pjs_')))
             ) {
               checkGeneric = true;
@@ -478,11 +557,16 @@
         SC.scanForVideos();
       }
 
-      if (checkGeneric && SC.getDOMSubtitleText) {
-        const text = SC.getDOMSubtitleText();
-        if (text && text.length > 1) {
-          const video = SC.getActiveVideo();
-          SC.addSubtitleLine(text, video ? video.currentTime : null);
+      if (checkGeneric) {
+        const video = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
+        if (video && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
+          if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
+        }
+        if (SC.getDOMSubtitleText) {
+          const text = SC.getDOMSubtitleText();
+          if (text && text.length > 1) {
+            SC.addSubtitleLine(text, video ? video.currentTime : null);
+          }
         }
       }
     });

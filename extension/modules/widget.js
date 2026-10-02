@@ -26,10 +26,12 @@
         const minBtn = SC.shadowRoot?.getElementById('sc-btn-minimize');
         if (minBtn) minBtn.textContent = '_';
       }
+      if (SC.updateWidgetPosition) SC.updateWidgetPosition();
     }
     if (SC.launcherBtn) {
       SC.launcherBtn.classList.add('sc-hidden');
     }
+    if (SC.updateVideoIconsState) SC.updateVideoIconsState();
     if (SC.state.autoScroll && SC.scrollListToBottom) {
       SC.scrollListToBottom();
     }
@@ -41,8 +43,16 @@
     if (SC.widgetEl) {
       SC.widgetEl.classList.add('sc-hidden');
     }
-    if (SC.launcherBtn) {
-      SC.launcherBtn.classList.remove('sc-hidden');
+    if (SC.updateVideoIconsState) SC.updateVideoIconsState();
+  };
+
+  // Update visual state (active class and title) for all on-video launcher icons
+  SC.updateVideoIconsState = function() {
+    if (!SC.videoIcons || SC.videoIcons.size === 0) return;
+    for (const [video, btn] of SC.videoIcons.entries()) {
+      const isActive = Boolean(SC.state.widgetVisible && SC.state.activeVideo === video);
+      btn.classList.toggle('sc-active', isActive);
+      btn.title = isActive ? 'Скрыть панель управления' : 'Открыть панель управления';
     }
   };
 
@@ -53,25 +63,31 @@
 
     const iconBtn = document.createElement('button');
     iconBtn.className = 'sc-video-badge-btn';
-    iconBtn.title = 'Открыть панель субтитров';
+    iconBtn.title = 'Панель управления субтитрами';
     iconBtn.innerHTML = `
       <svg viewBox="0 0 24 24">
         <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
       </svg>
     `;
 
+    // Toggle control panel on click (ai_instrs/_.md:8)
     iconBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      SC.state.activeVideo = video;
-      SC.openWidget();
+      if (SC.state.widgetVisible && SC.state.activeVideo === video) {
+        SC.closeWidget();
+      } else {
+        SC.state.activeVideo = video;
+        SC.openWidget();
+      }
     });
 
     SC.shadowRoot.appendChild(iconBtn);
     SC.videoIcons.set(video, iconBtn);
     SC.updateVideoIconsPosition();
+    SC.updateVideoIconsState();
   };
 
-  // Update positions for all on-video launcher icons
+  // Update positions for all on-video launcher icons strictly within video detect window
   SC.updateVideoIconsPosition = function() {
     if (!SC.videoIcons || SC.videoIcons.size === 0) return;
     for (const [video, btn] of SC.videoIcons.entries()) {
@@ -82,18 +98,82 @@
       }
 
       const rect = video.getBoundingClientRect();
-      if (rect.width < 50 || rect.height < 50 || rect.bottom < 0 || rect.top > window.innerHeight) {
+      if (rect.width < 50 || rect.height < 50 || rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
         btn.style.display = 'none';
         continue;
       }
 
+      const iconW = 32;
+      const iconH = 32;
+      const pad = 10;
+
+      // Ensure icon stays strictly within the detect window at the side
+      const minLeft = rect.left + pad;
+      const maxLeft = Math.max(minLeft, rect.right - iconW - pad);
+      const minTop = rect.top + pad;
+      const maxTop = Math.max(minTop, rect.bottom - iconH - pad);
+
+      const left = Math.max(minLeft, Math.min(maxLeft, rect.right - iconW - pad));
+      const top = Math.max(minTop, Math.min(maxTop, rect.top + pad));
+
       btn.style.display = 'flex';
-      btn.style.top = `${Math.round(rect.top + 10)}px`;
-      btn.style.left = `${Math.round(rect.right - 42)}px`;
+      btn.style.top = `${Math.round(top)}px`;
+      btn.style.left = `${Math.round(left)}px`;
     }
   };
 
-  // Coalesced rAF-throttled position updater for overlay and icons
+  // Adjust control panel position strictly within video detect window boundaries (ai_instrs/_.md:8)
+  SC.updateWidgetPosition = function() {
+    if (!SC.widgetEl || !SC.state.widgetVisible) return;
+    const video = SC.getActiveVideo();
+    if (!video || !document.contains(video)) {
+      SC.widgetEl.classList.add('sc-hidden');
+      return;
+    }
+
+    const vRect = video.getBoundingClientRect();
+    if (vRect.width < 50 || vRect.height < 50 || vRect.bottom < 0 || vRect.top > window.innerHeight || vRect.right < 0 || vRect.left > window.innerWidth) {
+      SC.widgetEl.classList.add('sc-hidden');
+      return;
+    }
+
+    SC.widgetEl.classList.remove('sc-hidden');
+
+    const pad = 6;
+    // Constrain maximum panel dimensions to video detect window
+    SC.widgetEl.style.maxWidth = `${Math.max(260, Math.round(vRect.width - (pad * 2)))}px`;
+    SC.widgetEl.style.maxHeight = `${Math.max(160, Math.round(vRect.height - (pad * 2)))}px`;
+
+    const elW = SC.widgetEl.offsetWidth || 340;
+    const elH = SC.widgetEl.offsetHeight || 220;
+
+    const minX = vRect.left + pad;
+    const maxX = Math.max(minX, vRect.right - elW - pad);
+    const minY = vRect.top + pad;
+    const maxY = Math.max(minY, vRect.bottom - elH - pad);
+
+    let targetLeft;
+    let targetTop;
+
+    if (typeof SC.state.widgetVideoRelX === 'number' && typeof SC.state.widgetVideoRelY === 'number') {
+      targetLeft = vRect.left + SC.state.widgetVideoRelX;
+      targetTop = vRect.top + SC.state.widgetVideoRelY;
+    } else {
+      // Default position inside video detect window: near top-right
+      targetLeft = vRect.right - elW - 12;
+      targetTop = vRect.top + 12;
+    }
+
+    targetLeft = Math.max(minX, Math.min(maxX, targetLeft));
+    targetTop = Math.max(minY, Math.min(maxY, targetTop));
+
+    SC.widgetEl.style.left = `${Math.round(targetLeft)}px`;
+    SC.widgetEl.style.top = `${Math.round(targetTop)}px`;
+    SC.widgetEl.style.right = 'auto';
+    SC.widgetEl.style.bottom = 'auto';
+  };
+
+  // Coalesced rAF-throttled position updater for overlay, icons, and control panel
   let posRafScheduled = false;
   SC.scheduleUpdatePositions = function() {
     if (posRafScheduled) return;
@@ -102,6 +182,7 @@
       posRafScheduled = false;
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
+      if (SC.updateWidgetPosition) SC.updateWidgetPosition();
     });
   };
 
@@ -137,7 +218,7 @@
 
     // Create Widget
     const widget = document.createElement('div');
-    widget.className = 'sc-widget';
+    widget.className = 'sc-widget sc-hidden';
     widget.id = 'sc-widget';
     widget.innerHTML = `
       <div class="sc-header" id="sc-header">
@@ -232,16 +313,16 @@
         item.mode = (item.type === 'source' || item.mode === 'track') ? 'track' : 'trans';
       }
       if (item.mode === 'track') {
-        if (!item.trackId || item.trackId === 'auto') {
-          item.trackId = availTracks.length > 0 ? availTracks[0].value : 'auto';
+        if (!item.trackId || !availTracks.some(a => a.value === item.trackId)) {
+          item.trackId = availTracks.length > 0 ? availTracks[0].value : '';
         }
         item.lang = item.trackId;
         item.type = 'source';
       } else {
-        if (!item.sourceTrack || item.sourceTrack === 'auto') {
-          item.sourceTrack = (item.sourceFrom && item.sourceFrom !== 'auto')
+        if (!item.sourceTrack || !availTracks.some(a => a.value === item.sourceTrack)) {
+          item.sourceTrack = (item.sourceFrom && availTracks.some(a => a.value === item.sourceFrom))
             ? item.sourceFrom
-            : (availTracks.length > 0 ? availTracks[0].value : 'auto');
+            : (availTracks.length > 0 ? availTracks[0].value : '');
         }
         item.sourceFrom = item.sourceTrack;
         if (!item.targetLang) {
@@ -321,19 +402,27 @@
         trackSelect.title = 'Выбор субтитра из суб-списка доступных к видео (по умолчанию первый)';
 
         if (availTracks.length > 0) {
+          trackSelect.disabled = false;
+          const trackExists = availTracks.some(a => a.value === item.trackId);
           availTracks.forEach((tr, idx) => {
             const opt = document.createElement('option');
             opt.value = tr.value;
             opt.textContent = tr.label;
-            if (item.trackId === tr.value || (!item.trackId && idx === 0)) {
+            if (item.trackId === tr.value || (!trackExists && idx === 0)) {
               opt.selected = true;
               item.trackId = tr.value;
               item.lang = tr.value;
+              if (item.trackId.startsWith('yt:')) {
+                const code = item.trackId.replace('yt:', '');
+                const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
+                if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.trackId);
+              }
             }
             trackSelect.appendChild(opt);
           });
         } else {
-          trackSelect.innerHTML = '<option value="auto">Субтитры видео (по умолчанию)</option>';
+          trackSelect.innerHTML = '<option value="" disabled selected>Дорожки не обнаружены</option>';
+          trackSelect.disabled = true;
         }
 
         trackSelect.addEventListener('change', (e) => {
@@ -354,19 +443,27 @@
         sourceSelect.title = 'Выбор источника из суб-списка';
 
         if (availTracks.length > 0) {
+          sourceSelect.disabled = false;
+          const sourceExists = availTracks.some(a => a.value === item.sourceTrack);
           availTracks.forEach((tr, idx) => {
             const opt = document.createElement('option');
             opt.value = tr.value;
             opt.textContent = tr.label;
-            if (item.sourceTrack === tr.value || (!item.sourceTrack && idx === 0)) {
+            if (item.sourceTrack === tr.value || (!sourceExists && idx === 0)) {
               opt.selected = true;
               item.sourceTrack = tr.value;
               item.sourceFrom = tr.value;
+              if (item.sourceTrack.startsWith('yt:')) {
+                const code = item.sourceTrack.replace('yt:', '');
+                const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
+                if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.sourceTrack);
+              }
             }
             sourceSelect.appendChild(opt);
           });
         } else {
-          sourceSelect.innerHTML = '<option value="auto">Субтитры видео</option>';
+          sourceSelect.innerHTML = '<option value="" disabled selected>Дорожки не обнаружены</option>';
+          sourceSelect.disabled = true;
         }
 
         sourceSelect.addEventListener('change', (e) => {
@@ -411,11 +508,63 @@
           if (SC.retranslateItem) SC.retranslateItem(item);
           if (SC.prefetchUpcomingTranslations) {
             const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferSec || 30);
           }
           SC.renderAllLines();
         });
         controls.appendChild(targetSelect);
+
+        // Translation engine select (ai_instrs/_.md:21-24)
+        item.engine = item.engine || 'google';
+        const engineSelect = document.createElement('select');
+        engineSelect.className = 'sc-lang-select sc-engine-select';
+        engineSelect.title = 'Выбор движка перевода (по умолчанию: Google Translate)';
+        const engines = SC.TRANSLATION_ENGINES || [
+          { id: 'google', name: 'Google' },
+          { id: 'yandex', name: 'Yandex' },
+          { id: 'chrome', name: 'Chrome AI' }
+        ];
+        engines.forEach(eng => {
+          const opt = document.createElement('option');
+          opt.value = eng.id;
+          opt.textContent = eng.name;
+          if (item.engine === eng.id) opt.selected = true;
+          engineSelect.appendChild(opt);
+        });
+        engineSelect.addEventListener('change', (e) => {
+          item.engine = e.target.value;
+          if (SC.retranslateItem) SC.retranslateItem(item);
+          if (SC.prefetchUpcomingTranslations) {
+            const v = SC.getActiveVideo();
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferSec || 30);
+          }
+          SC.renderAllLines();
+        });
+        controls.appendChild(engineSelect);
+
+        // Buffer input (seconds, default 30s) (ai_instrs/_.md:25)
+        item.bufferSec = (item.bufferSec !== undefined && item.bufferSec !== null) ? Number(item.bufferSec) : 30;
+        const bufferWrap = document.createElement('div');
+        bufferWrap.className = 'sc-buffer-wrap';
+        bufferWrap.title = 'Буфер упреждения перевода (по умолчанию 30 секунд)';
+        bufferWrap.innerHTML = `
+          <span class="sc-buffer-label">Буфер:</span>
+          <input type="number" class="sc-buffer-input" min="5" max="300" step="5" value="${item.bufferSec}" title="Буфер упреждения перевода в секундах">
+          <span class="sc-buffer-unit">с</span>
+        `;
+        const bufferInput = bufferWrap.querySelector('.sc-buffer-input');
+        const onBufferChange = () => {
+          const val = parseInt(bufferInput.value, 10);
+          item.bufferSec = isNaN(val) ? 30 : Math.max(1, Math.min(600, val));
+          bufferInput.value = item.bufferSec;
+          if (SC.prefetchUpcomingTranslations) {
+            const v = SC.getActiveVideo();
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferSec);
+          }
+        };
+        bufferInput.addEventListener('change', onBufferChange);
+        bufferInput.addEventListener('input', onBufferChange);
+        controls.appendChild(bufferWrap);
       }
 
       modeSelect.addEventListener('change', (e) => {
@@ -423,16 +572,16 @@
         item.mode = newMode;
         if (newMode === 'track') {
           item.type = 'source';
-          item.trackId = availTracks.length > 0 ? availTracks[0].value : 'auto';
+          item.trackId = availTracks.length > 0 ? availTracks[0].value : '';
           item.lang = item.trackId;
-          if (item.trackId.startsWith('yt:')) {
+          if (item.trackId && item.trackId.startsWith('yt:')) {
             const code = item.trackId.replace('yt:', '');
             const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
             if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.trackId);
           }
         } else {
           item.type = 'translation';
-          item.sourceTrack = availTracks.length > 0 ? availTracks[0].value : 'auto';
+          item.sourceTrack = availTracks.length > 0 ? availTracks[0].value : '';
           item.sourceFrom = item.sourceTrack;
           const suggested = SC.getSuggestedTargetLang ? SC.getSuggestedTargetLang(item.sourceTrack) : 'en';
           item.targetLang = (item.targetLang && !item.targetLang.includes(':') && item.targetLang !== 'auto') ? item.targetLang : suggested;
@@ -546,10 +695,12 @@
           id: `lang_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           type: 'translation',
           mode: 'trans',
-          trackId: availTracks.length > 0 ? availTracks[0].value : 'auto',
-          sourceTrack: availTracks.length > 0 ? availTracks[0].value : 'auto',
-          sourceFrom: availTracks.length > 0 ? availTracks[0].value : 'auto',
+          trackId: availTracks.length > 0 ? availTracks[0].value : '',
+          sourceTrack: availTracks.length > 0 ? availTracks[0].value : '',
+          sourceFrom: availTracks.length > 0 ? availTracks[0].value : '',
           targetLang: nextLangCode,
+          engine: 'google',
+          bufferSec: 30,
           lang: nextLangCode,
           visible: true
         };
@@ -558,7 +709,7 @@
         if (SC.retranslateItem) SC.retranslateItem(newSelector);
         if (SC.prefetchUpcomingTranslations) {
           const v = SC.getActiveVideo();
-          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, newSelector.bufferSec || 30);
         }
         SC.renderAllLines();
       });
@@ -788,18 +939,18 @@
     }
   };
 
-  // Draggable logic for widget window header
+  // Draggable logic for widget window header: strictly constrained to active video detect window (ai_instrs/_.md:8)
   SC.setupDraggable = function(element, handle) {
     let isDragging = false;
-    let hasMoved = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
 
     handle.addEventListener('mousedown', (e) => {
       if (e.target.closest('button, select, input, a')) return;
+      const video = SC.getActiveVideo();
+      if (!video) return;
 
       isDragging = true;
-      hasMoved = false;
       startX = e.clientX;
       startY = e.clientY;
 
@@ -809,24 +960,36 @@
 
       const onMouseMove = (ev) => {
         if (!isDragging) return;
+        const v = SC.getActiveVideo();
+        if (!v) return;
+
+        const vRect = v.getBoundingClientRect();
+        const elW = element.offsetWidth;
+        const elH = element.offsetHeight;
+        const pad = 6;
+
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
-
-        if (!hasMoved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-        if (!hasMoved) {
-          hasMoved = true;
-          element.style.bottom = 'auto';
-          element.style.right = 'auto';
-        }
 
         let newLeft = initialLeft + dx;
         let newTop = initialTop + dy;
 
-        newLeft = Math.max(0, Math.min(window.innerWidth - element.offsetWidth, newLeft));
-        newTop = Math.max(0, Math.min(window.innerHeight - element.offsetHeight, newTop));
+        // Strictly clamped inside the video detect window boundaries (ai_instrs/_.md:8)
+        const minX = vRect.left + pad;
+        const maxX = Math.max(minX, vRect.right - elW - pad);
+        const minY = vRect.top + pad;
+        const maxY = Math.max(minY, vRect.bottom - elH - pad);
 
-        element.style.left = `${newLeft}px`;
-        element.style.top = `${newTop}px`;
+        newLeft = Math.max(minX, Math.min(maxX, newLeft));
+        newTop = Math.max(minY, Math.min(maxY, newTop));
+
+        element.style.left = `${Math.round(newLeft)}px`;
+        element.style.top = `${Math.round(newTop)}px`;
+        element.style.right = 'auto';
+        element.style.bottom = 'auto';
+
+        SC.state.widgetVideoRelX = newLeft - vRect.left;
+        SC.state.widgetVideoRelY = newTop - vRect.top;
       };
 
       const onMouseUp = () => {

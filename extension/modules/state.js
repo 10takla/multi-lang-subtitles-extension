@@ -26,6 +26,13 @@
     { code: 'ar', name: 'العربية' }
   ];
 
+  // Available translation engines (ai_instrs/_.md:21-25)
+  SC.TRANSLATION_ENGINES = [
+    { id: 'google', name: 'Google' },
+    { id: 'yandex', name: 'Yandex' },
+    { id: 'chrome', name: 'Chrome AI' }
+  ];
+
   SC.getLangName = function(code) {
     const found = SC.AVAILABLE_LANGUAGES.find(l => l.code === code);
     return found ? found.name : code;
@@ -120,8 +127,10 @@
     lines: [],
     autoScroll: true,
     fontSize: 13,
-    widgetVisible: true,
+    widgetVisible: false,
     minimized: false,
+    widgetVideoRelX: null,
+    widgetVideoRelY: null,
     lastAddedText: '',
     lastAddedTime: 0,
     lastVideoTime: -1,
@@ -131,10 +140,12 @@
       {
         id: 'lang_init',
         mode: 'track', // 'track' (Выбор субтитра из суб-списка) | 'trans' (Перевод с выбором языка)
-        trackId: 'auto', // Default to first element of sub-list
-        sourceTrack: 'auto',
+        trackId: '', // Default to first element of sub-list when available
+        sourceTrack: '',
         targetLang: 'en',
-        lang: 'auto',
+        engine: 'google',
+        bufferSec: 30,
+        lang: '',
         type: 'source',
         visible: true
       }
@@ -166,7 +177,7 @@
 
   // Find currently active or playing video element with caching
   SC.getActiveVideo = function() {
-    if (SC.state.activeVideo && document.contains(SC.state.activeVideo) && !SC.state.activeVideo.paused) {
+    if (SC.state.activeVideo && document.contains(SC.state.activeVideo)) {
       return SC.state.activeVideo;
     }
     const videos = document.getElementsByTagName('video');
@@ -177,9 +188,6 @@
         SC.state.activeVideo = v;
         return v;
       }
-    }
-    if (SC.state.activeVideo && document.contains(SC.state.activeVideo)) {
-      return SC.state.activeVideo;
     }
     SC.state.activeVideo = videos[0];
     return videos[0];

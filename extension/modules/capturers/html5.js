@@ -97,7 +97,7 @@
   /**
    * Checks for an active HTML5 cue at playback time t.
    */
-  SC.getHTML5ActiveCueAtTime = function(video, t, primaryTrackVal = 'auto') {
+  SC.getHTML5ActiveCueAtTime = function(video, t, primaryTrackVal = null) {
     if (!video || !video.textTracks || video.textTracks.length === 0) return null;
 
     for (let i = 0; i < video.textTracks.length; i++) {
@@ -105,16 +105,17 @@
       SC.ensureHiddenMode(tr);
 
       const trackVal = `track:${tr.language || i}`;
-      if (primaryTrackVal !== 'auto' && primaryTrackVal !== trackVal) {
+      if (primaryTrackVal && primaryTrackVal !== 'auto' && primaryTrackVal !== trackVal) {
         continue;
       }
 
       // Fast path: check native activeCues first
       if (tr.activeCues && tr.activeCues.length > 0) {
         const c = tr.activeCues[0];
-        const text = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
-        if (text) {
-          return { text, start: c.startTime };
+        const raw = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
+        const clean = SC.cleanText ? SC.cleanText(raw) : (raw || '').trim();
+        if (clean) {
+          return { text: clean, start: c.startTime };
         }
       }
 
@@ -123,9 +124,10 @@
         for (let j = 0; j < tr.cues.length; j++) {
           const c = tr.cues[j];
           if (t >= c.startTime && t <= c.endTime) {
-            const text = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
-            if (text) {
-              return { text, start: c.startTime };
+            const raw = c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : '');
+            const clean = SC.cleanText ? SC.cleanText(raw) : (raw || '').trim();
+            if (clean) {
+              return { text: clean, start: c.startTime };
             }
           }
         }

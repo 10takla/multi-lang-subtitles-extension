@@ -9,8 +9,8 @@
 
   const inFlightRequests = new Map();
 
-  // Translate text via background script with fallback to direct Google Translate GTX
-  SC.fetchTranslation = async function(text, targetLang, sourceLang = 'auto') {
+  // Translate text via background script or client APIs with engine support (Google, Yandex, Chrome)
+  SC.fetchTranslation = async function(text, targetLang, sourceLang = 'auto', engine = 'google') {
     if (!text || !targetLang) return null;
     const cleanSourceText = SC.cleanText(text);
     if (!cleanSourceText) return null;
@@ -22,7 +22,8 @@
       return cleanSourceText;
     }
 
-    const cacheKey = `${normSourceLang}_${normTargetLang}_${cleanSourceText}`;
+    const currentEngine = engine || 'google';
+    const cacheKey = `${currentEngine}_${normSourceLang}_${normTargetLang}_${cleanSourceText}`;
     if (SC.state.translationCache.has(cacheKey)) {
       return SC.state.translationCache.get(cacheKey);
     }
@@ -30,9 +31,54 @@
       return inFlightRequests.get(cacheKey);
     }
 
+    // Chrome Built-in Translator (Local on-device API)
+    if (currentEngine === 'chrome') {
+      const promise = (async () => {
+        try {
+          if (typeof window.translation !== 'undefined' && window.translation.createTranslator) {
+            const translator = await window.translation.createTranslator({
+              sourceLanguage: normSourceLang === 'auto' ? 'en' : normSourceLang,
+              targetLanguage: normTargetLang
+            });
+            const res = await translator.translate(cleanSourceText);
+            if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
+              SC.state.translationCache.set(cacheKey, res.trim());
+              return res.trim();
+            }
+          } else if (typeof window.ai !== 'undefined' && window.ai.translator?.create) {
+            const translator = await window.ai.translator.create({
+              sourceLanguage: normSourceLang === 'auto' ? 'en' : normSourceLang,
+              targetLanguage: normTargetLang
+            });
+            const res = await translator.translate(cleanSourceText);
+            if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
+              SC.state.translationCache.set(cacheKey, res.trim());
+              return res.trim();
+            }
+          }
+        } catch (err) {
+          console.warn('[Subtitles] Chrome Built-in Translator failed, falling back to Google:', err);
+        }
+        // Fallback to Google if Chrome AI not available or fails
+        return SC.fetchTranslation(cleanSourceText, normTargetLang, normSourceLang, 'google');
+      })().finally(() => {
+        inFlightRequests.delete(cacheKey);
+      });
+
+      inFlightRequests.set(cacheKey, promise);
+      return promise;
+    }
+
     const promise = new Promise((resolve) => {
       const doDirectFetch = () => {
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(normSourceLang)}&tl=${encodeURIComponent(normTargetLang)}&dt=t&q=${encodeURIComponent(cleanSourceText)}`;
+        let url;
+        if (currentEngine === 'yandex') {
+          const langParam = (normSourceLang && normSourceLang !== 'auto') ? `${normSourceLang}-${normTargetLang}` : normTargetLang;
+          url = `https://translate.yandex.net/api/v1/tr.json/translate?srv=android&lang=${encodeURIComponent(langParam)}&text=${encodeURIComponent(cleanSourceText)}`;
+        } else {
+          url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(normSourceLang)}&tl=${encodeURIComponent(normTargetLang)}&dt=t&q=${encodeURIComponent(cleanSourceText)}`;
+        }
+
         fetch(url)
           .then(r => {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -40,10 +86,13 @@
           })
           .then(d => {
             let res = '';
-            if (d && Array.isArray(d[0])) {
+            if (currentEngine === 'yandex') {
+              if (d && Array.isArray(d.text)) {
+                res = d.text.join(' ').trim();
+              }
+            } else if (d && Array.isArray(d[0])) {
               res = d[0].map(c => (c && c[0]) ? c[0] : '').join('').trim();
             }
-            // CRITICAL: Only cache if valid translation received! Never cache fallback original text!
             if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
               SC.state.translationCache.set(cacheKey, res);
               resolve(res);
@@ -57,7 +106,7 @@
       if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
         try {
           chrome.runtime.sendMessage(
-            { type: 'TRANSLATE_TEXT', text: cleanSourceText, targetLang: normTargetLang, sourceLang: normSourceLang },
+            { type: 'TRANSLATE_TEXT', text: cleanSourceText, targetLang: normTargetLang, sourceLang: normSourceLang, engine: currentEngine },
             (response) => {
               if (chrome.runtime.lastError || !response || !response.success || !response.translated) {
                 doDirectFetch();
@@ -95,8 +144,8 @@
     return (firstTrack && (firstTrack.trackId || firstTrack.lang)) || 'auto';
   };
 
-  // Prefetch translations for upcoming subtitle cues ahead of time (30-60s buffer)
-  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferSeconds = 45) {
+  // Prefetch translations for upcoming subtitle cues ahead of time (using configured bufferSec, default 30s)
+  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferSeconds = null) {
     if (!SC.getUpcomingCues) return;
 
     const translationItems = SC.state.languages.filter(l => (l.mode === 'trans' || l.type === 'translation') && l.mode !== 'track');
@@ -122,11 +171,16 @@
         return;
       }
 
-      const upcomingCues = SC.getUpcomingCues(t, bufferSeconds, sourceTrack);
+      const effectiveBuffer = (item.bufferSec !== undefined && item.bufferSec !== null)
+        ? Math.max(1, Number(item.bufferSec))
+        : (bufferSeconds || 30);
+
+      const upcomingCues = SC.getUpcomingCues(t, effectiveBuffer, sourceTrack);
       if (!upcomingCues || upcomingCues.length === 0) return;
 
       const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
       const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
+      const engine = item.engine || 'google';
 
       // Filter cues that need fetching and sort by start time ascending
       const needed = [];
@@ -134,7 +188,7 @@
         const cue = upcomingCues[i];
         const sourceText = SC.cleanText(cue.text);
         if (!sourceText) continue;
-        const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
+        const cacheKey = `${engine}_${normSourceLang}_${normTargetLang}_${sourceText}`;
         if (!SC.state.translationCache.has(cacheKey) && !inFlightRequests.has(cacheKey)) {
           needed.push({ cue, text: sourceText, key: cacheKey });
         }
@@ -145,10 +199,10 @@
       // Sort so the immediate upcoming cues are fetched first
       needed.sort((a, b) => a.cue.start - b.cue.start);
 
-      // Fetch up to 30 nearest upcoming cues (covering full 30-60s buffer)
+      // Fetch up to 30 nearest upcoming cues (covering full buffer)
       const batch = needed.slice(0, 30);
       for (let i = 0; i < batch.length; i++) {
-        SC.fetchTranslation(batch[i].text, normTargetLang, normSourceLang);
+        SC.fetchTranslation(batch[i].text, normTargetLang, normSourceLang, engine);
       }
     });
   };
@@ -166,6 +220,7 @@
 
     const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
     const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
+    const engine = item.engine || 'google';
 
     SC.state.lines.forEach(l => {
       let sourceText = l.text;
@@ -186,7 +241,7 @@
         return;
       }
 
-      const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
+      const cacheKey = `${engine}_${normSourceLang}_${normTargetLang}_${sourceText}`;
       if (SC.state.translationCache.has(cacheKey)) {
         const trans = SC.state.translationCache.get(cacheKey);
         l.translations[item.id] = trans;
@@ -195,7 +250,7 @@
           SC.updateTranslationInDOM(l.id, item.id, trans);
         }
       } else {
-        SC.fetchTranslation(sourceText, normTargetLang, normSourceLang).then(trans => {
+        SC.fetchTranslation(sourceText, normTargetLang, normSourceLang, engine).then(trans => {
           if (trans && (trans !== sourceText || normSourceLang === normTargetLang)) {
             l.translations[item.id] = trans;
             l.translations[normTargetLang] = trans;
@@ -238,6 +293,7 @@
 
         const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
         const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(langCode) : langCode;
+        const engine = langItem.engine || 'google';
 
         if (normSourceLang !== 'auto' && normTargetLang !== 'auto' && normSourceLang === normTargetLang) {
           line.translations[langItem.id] = sourceText;
@@ -246,13 +302,13 @@
         }
 
         if (!line.translations[langItem.id]) {
-          const cacheKey = `${normSourceLang}_${normTargetLang}_${sourceText}`;
+          const cacheKey = `${engine}_${normSourceLang}_${normTargetLang}_${sourceText}`;
           if (SC.state.translationCache.has(cacheKey)) {
             const cached = SC.state.translationCache.get(cacheKey);
             line.translations[langItem.id] = cached;
             line.translations[normTargetLang] = cached;
           } else {
-            SC.fetchTranslation(sourceText, normTargetLang, normSourceLang).then(trans => {
+            SC.fetchTranslation(sourceText, normTargetLang, normSourceLang, engine).then(trans => {
               if (trans && (trans !== sourceText || normSourceLang === normTargetLang)) {
                 line.translations[langItem.id] = trans;
                 line.translations[normTargetLang] = trans;

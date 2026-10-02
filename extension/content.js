@@ -15,9 +15,11 @@
     if (!isTopFrame) {
       try {
         const activeVideo = SC.getActiveVideo();
+        const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
         window.parent.postMessage({
           type: '__SC_CHILD_FRAME_UPDATE__',
           lines: SC.state.lines,
+          tracks: availTracks,
           videoDetected: !!activeVideo,
           videoTime: activeVideo ? SC.formatTime(activeVideo.currentTime) : null,
           widgetVisible: SC.state.widgetVisible
@@ -39,6 +41,16 @@
     if (!e.data) return;
     if (e.data.type === '__SC_CHILD_FRAME_UPDATE__') {
       latestChildFrameData = e.data;
+      if (Array.isArray(e.data.tracks) && e.data.tracks.length > 0) {
+        SC.state.childTracks = e.data.tracks;
+        if (SC.renderLanguageList) SC.renderLanguageList();
+      }
+      if (Array.isArray(e.data.lines) && e.data.lines.length > 0) {
+        if (SC.state.lines.length < e.data.lines.length) {
+          SC.state.lines = e.data.lines;
+          if (SC.renderAllLines) SC.renderAllLines();
+        }
+      }
       if (!isTopFrame) {
         // Relay upward if middle frame
         try { window.parent.postMessage(e.data, '*'); } catch (_) {}
@@ -142,12 +154,13 @@
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
 
-    // Periodic fallback sweep for dynamically injected video elements and tracks
+    // Periodic fallback sweep for dynamically injected video elements, tracks, and position syncing
     setInterval(() => {
       SC.scanForVideos();
       if (SC.scanPageForSubtitleTracks) SC.scanPageForSubtitleTracks();
+      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
       broadcastFrameUpdate();
-    }, 5000);
+    }, 1500);
   }
 
   if (document.readyState === 'loading') {
