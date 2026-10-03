@@ -91,14 +91,15 @@
   SC.updateVideoIconsPosition = function() {
     if (!SC.videoIcons || SC.videoIcons.size === 0) return;
     for (const [video, btn] of SC.videoIcons.entries()) {
-      if (!document.contains(video)) {
+      const doc = video.ownerDocument || document;
+      if (!doc.contains(video)) {
         btn.remove();
         SC.videoIcons.delete(video);
         continue;
       }
 
-      const rect = video.getBoundingClientRect();
-      if (rect.width < 50 || rect.height < 50 || rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+      const rect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
+      if (rect.width < 50 || rect.height < 50 || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
         btn.style.display = 'none';
         continue;
       }
@@ -107,14 +108,19 @@
       const iconH = 32;
       const pad = 10;
 
-      // Ensure icon stays strictly within the detect window at the side
-      const minLeft = rect.left + pad;
-      const maxLeft = Math.max(minLeft, rect.right - iconW - pad);
-      const minTop = rect.top + pad;
-      const maxTop = Math.max(minTop, rect.bottom - iconH - pad);
+      // Ensure icon stays strictly within the visible intersection of video and viewport (ai_instrs/_.md:8)
+      const visibleTop = Math.max(0, rect.top);
+      const visibleBottom = Math.min(window.innerHeight, rect.bottom);
+      const visibleLeft = Math.max(0, rect.left);
+      const visibleRight = Math.min(window.innerWidth, rect.right);
 
-      const left = Math.max(minLeft, Math.min(maxLeft, rect.right - iconW - pad));
-      const top = Math.max(minTop, Math.min(maxTop, rect.top + pad));
+      const minLeft = visibleLeft + pad;
+      const maxLeft = Math.max(minLeft, visibleRight - iconW - pad);
+      const minTop = visibleTop + pad;
+      const maxTop = Math.max(minTop, visibleBottom - iconH - pad);
+
+      const left = Math.max(minLeft, Math.min(maxLeft, visibleRight - iconW - pad));
+      const top = Math.max(minTop, Math.min(maxTop, visibleTop + pad));
 
       btn.style.display = 'flex';
       btn.style.top = `${Math.round(top)}px`;
@@ -126,13 +132,14 @@
   SC.updateWidgetPosition = function() {
     if (!SC.widgetEl || !SC.state.widgetVisible) return;
     const video = SC.getActiveVideo();
-    if (!video || !document.contains(video)) {
+    const doc = video?.ownerDocument || document;
+    if (!video || !doc.contains(video)) {
       SC.widgetEl.classList.add('sc-hidden');
       return;
     }
 
-    const vRect = video.getBoundingClientRect();
-    if (vRect.width < 50 || vRect.height < 50 || vRect.bottom < 0 || vRect.top > window.innerHeight || vRect.right < 0 || vRect.left > window.innerWidth) {
+    const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
+    if (vRect.width < 50 || vRect.height < 50 || vRect.bottom <= 0 || vRect.top >= window.innerHeight || vRect.right <= 0 || vRect.left >= window.innerWidth) {
       SC.widgetEl.classList.add('sc-hidden');
       return;
     }
@@ -140,9 +147,14 @@
     SC.widgetEl.classList.remove('sc-hidden');
 
     const pad = 6;
+    const vTop = Math.max(0, vRect.top);
+    const vBottom = Math.min(window.innerHeight, vRect.bottom);
+    const vLeft = Math.max(0, vRect.left);
+    const vRight = Math.min(window.innerWidth, vRect.right);
+
     // Constrain maximum panel dimensions to video detect window
-    SC.widgetEl.style.maxWidth = `${Math.max(260, Math.round(vRect.width - (pad * 2)))}px`;
-    SC.widgetEl.style.maxHeight = `${Math.max(160, Math.round(vRect.height - (pad * 2)))}px`;
+    SC.widgetEl.style.maxWidth = `${Math.max(260, Math.round((vRight - vLeft) - (pad * 2)))}px`;
+    SC.widgetEl.style.maxHeight = `${Math.max(160, Math.round((vBottom - vTop) - (pad * 2)))}px`;
 
     const elW = SC.widgetEl.offsetWidth || 340;
     const elH = SC.widgetEl.offsetHeight || 220;
@@ -160,8 +172,8 @@
       targetTop = vRect.top + SC.state.widgetVideoRelY;
     } else {
       // Default position inside video detect window: near top-right
-      targetLeft = vRect.right - elW - 12;
-      targetTop = vRect.top + 12;
+      targetLeft = visibleRight - elW - 12;
+      targetTop = visibleTop + 12;
     }
 
     targetLeft = Math.max(minX, Math.min(maxX, targetLeft));
@@ -215,6 +227,35 @@
       ? chrome.runtime.getURL('content.css')
       : '/extension/content.css';
     shadow.appendChild(link);
+
+    // Fallback base styles for badge icon and container
+    const baseStyle = document.createElement('style');
+    baseStyle.textContent = `
+      :host, #subtitles-capturer-host { position: fixed; z-index: 2147483647; pointer-events: none; }
+      .sc-video-badge-btn {
+        position: fixed !important;
+        width: 32px !important;
+        height: 32px !important;
+        border-radius: 8px !important;
+        background: rgba(18, 20, 26, 0.88) !important;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        color: #f1f3f9 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        z-index: 2147483645 !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+        padding: 0 !important;
+        pointer-events: auto !important;
+      }
+      .sc-video-badge-btn svg { width: 18px !important; height: 18px !important; fill: currentColor !important; pointer-events: none !important; }
+      .sc-video-badge-btn:hover { background: rgba(24, 119, 242, 0.95) !important; }
+      .sc-video-badge-btn.sc-active { background: rgba(24, 119, 242, 0.95) !important; border-color: #60a5fa !important; color: #ffffff !important; }
+    `;
+    shadow.appendChild(baseStyle);
 
     // Create Widget
     const widget = document.createElement('div');

@@ -140,7 +140,16 @@
     window.addEventListener('scroll', SC.scheduleUpdatePositions, { passive: true });
 
     const handleFsChange = () => {
-      const fsElem = document.fullscreenElement || document.webkitFullscreenElement;
+      let fsElem = document.fullscreenElement || document.webkitFullscreenElement;
+      if (!fsElem && SC.getAccessibleDocuments) {
+        const docs = SC.getAccessibleDocuments();
+        for (const doc of docs) {
+          if (doc !== document && (doc.fullscreenElement || doc.webkitFullscreenElement)) {
+            fsElem = doc.fullscreenElement || doc.webkitFullscreenElement;
+            break;
+          }
+        }
+      }
       if (fsElem && SC.hostEl) {
         if (SC.hostEl.parentNode !== fsElem) {
           fsElem.appendChild(SC.hostEl);
@@ -156,6 +165,17 @@
 
     // Periodic fallback sweep for dynamically injected video elements, tracks, and position syncing
     setInterval(() => {
+      if (SC.getAccessibleDocuments) {
+        SC.getAccessibleDocuments().forEach(d => {
+          if (SC.observeDocument) SC.observeDocument(d);
+          if (d !== document) {
+            d.removeEventListener('fullscreenchange', handleFsChange);
+            d.removeEventListener('webkitfullscreenchange', handleFsChange);
+            d.addEventListener('fullscreenchange', handleFsChange);
+            d.addEventListener('webkitfullscreenchange', handleFsChange);
+          }
+        });
+      }
       SC.scanForVideos();
       if (SC.scanPageForSubtitleTracks) SC.scanPageForSubtitleTracks();
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();

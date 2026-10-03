@@ -502,12 +502,17 @@
     if (SC.scanPageForSubtitleTracks) {
       SC.scanPageForSubtitleTracks();
     }
-    const videos = document.querySelectorAll('video');
-    videos.forEach(v => {
-      SC.hookVideo(v);
-      if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
-        if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(v);
-      }
+    const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
+    docs.forEach(doc => {
+      try {
+        const videos = doc.querySelectorAll('video');
+        videos.forEach(v => {
+          SC.hookVideo(v);
+          if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
+            if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(v);
+          }
+        });
+      } catch (_) {}
     });
   };
 
@@ -515,21 +520,40 @@
    * Sets up a MutationObserver for dynamically added videos and DOM captions.
    */
   SC.setupDOMSubtitleObserver = function() {
-    const observer = new MutationObserver((mutations) => {
-      let checkVideos = false;
-      let checkGeneric = false;
+    const observedDocs = new WeakSet();
 
-      for (let i = 0; i < mutations.length; i++) {
-        const m = mutations[i];
-        if (m.type === 'childList') {
-          for (let j = 0; j < m.addedNodes.length; j++) {
-            const node = m.addedNodes[j];
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              if (node.tagName === 'VIDEO' || node.tagName === 'TRACK' || (node.firstElementChild && node.querySelector('video, track'))) {
-                checkVideos = true;
+    function observeDocument(doc) {
+      if (!doc || observedDocs.has(doc)) return;
+      observedDocs.add(doc);
+
+      const observer = new MutationObserver((mutations) => {
+        let checkVideos = false;
+        let checkGeneric = false;
+
+        for (let i = 0; i < mutations.length; i++) {
+          const m = mutations[i];
+          if (m.type === 'childList') {
+            for (let j = 0; j < m.addedNodes.length; j++) {
+              const node = m.addedNodes[j];
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.tagName === 'VIDEO' || node.tagName === 'TRACK' || node.tagName === 'IFRAME' || (node.firstElementChild && node.querySelector('video, track, iframe'))) {
+                  checkVideos = true;
+                }
+                const cls = typeof node.className === 'string' ? node.className : '';
+                const id = typeof node.id === 'string' ? node.id : '';
+                if (
+                  (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs') || cls.includes('ytp-subtitles-button'))) ||
+                  (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('pjs_')))
+                ) {
+                  checkGeneric = true;
+                }
               }
-              const cls = typeof node.className === 'string' ? node.className : '';
-              const id = typeof node.id === 'string' ? node.id : '';
+            }
+          } else if (m.type === 'characterData') {
+            const parent = m.target.parentElement;
+            if (parent) {
+              const cls = typeof parent.className === 'string' ? parent.className : '';
+              const id = typeof parent.id === 'string' ? parent.id : '';
               if (
                 (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs') || cls.includes('ytp-subtitles-button'))) ||
                 (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('pjs_')))
@@ -538,43 +562,39 @@
               }
             }
           }
-        } else if (m.type === 'characterData') {
-          const parent = m.target.parentElement;
-          if (parent) {
-            const cls = typeof parent.className === 'string' ? parent.className : '';
-            const id = typeof parent.id === 'string' ? parent.id : '';
-            if (
-              (cls && (cls.includes('caption') || cls.includes('subtitle') || cls.includes('cue') || cls.includes('playerjs') || cls.includes('ytp-subtitles-button'))) ||
-              (id && (id.includes('caption') || id.includes('subtitle') || id.includes('cue') || id.includes('pjs_')))
-            ) {
-              checkGeneric = true;
+        }
+
+        if (checkVideos) {
+          const currentDocs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
+          currentDocs.forEach(observeDocument);
+          SC.scanForVideos();
+        }
+
+        if (checkGeneric) {
+          const video = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
+          if (video && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
+            if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
+          }
+          if (SC.getDOMSubtitleText) {
+            const text = SC.getDOMSubtitleText();
+            if (text && text.length > 1) {
+              SC.addSubtitleLine(text, video ? video.currentTime : null);
             }
           }
         }
-      }
+      });
 
-      if (checkVideos) {
-        SC.scanForVideos();
-      }
+      try {
+        observer.observe(doc.body || doc.documentElement, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+      } catch (_) {}
+    }
 
-      if (checkGeneric) {
-        const video = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
-        if (video && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
-          if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
-        }
-        if (SC.getDOMSubtitleText) {
-          const text = SC.getDOMSubtitleText();
-          if (text && text.length > 1) {
-            SC.addSubtitleLine(text, video ? video.currentTime : null);
-          }
-        }
-      }
-    });
-
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
+    SC.observeDocument = observeDocument;
+    const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
+    docs.forEach(observeDocument);
   };
 })();

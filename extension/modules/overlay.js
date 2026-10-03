@@ -42,7 +42,7 @@
       return;
     }
 
-    const vRect = video.getBoundingClientRect();
+    const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
     if (vRect.width < 50 || vRect.height < 50 || vRect.bottom < 0 || vRect.top > window.innerHeight) {
       SC.overlayEl.classList.add('sc-hidden');
       return;
