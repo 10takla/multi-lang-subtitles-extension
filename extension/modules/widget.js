@@ -172,8 +172,8 @@
       targetTop = vRect.top + SC.state.widgetVideoRelY;
     } else {
       // Default position inside video detect window: near top-right
-      targetLeft = visibleRight - elW - 12;
-      targetTop = visibleTop + 12;
+      targetLeft = vRight - elW - 12;
+      targetTop = vTop + 12;
     }
 
     targetLeft = Math.max(minX, Math.min(maxX, targetLeft));
@@ -225,7 +225,7 @@
     link.rel = 'stylesheet';
     link.href = (typeof chrome !== 'undefined' && chrome.runtime?.getURL)
       ? chrome.runtime.getURL('content.css')
-      : '/extension/content.css';
+      : ((SC.extensionBaseUrl || '') + 'content.css');
     shadow.appendChild(link);
 
     // Fallback base styles for badge icon and container

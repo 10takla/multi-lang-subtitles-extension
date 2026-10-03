@@ -216,4 +216,77 @@
     });
     trackObserver.observe(video, { childList: true });
   };
+
+  const HTML5Capturer = {
+    name: 'html5',
+    capture: async function(options = {}) {
+      const video = options.video || (SC.getActiveVideo ? SC.getActiveVideo() : (typeof document !== 'undefined' ? document.querySelector('video') : null));
+      const tracks = [];
+      if (!video || !video.textTracks) return tracks;
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const tr = video.textTracks[i];
+        SC.ensureHiddenMode(tr);
+        const cues = [];
+        if (tr.cues) {
+          for (let j = 0; j < tr.cues.length; j++) {
+            const c = tr.cues[j];
+            const raw = SC.cleanText ? SC.cleanText(c.text || '') : (c.text || (c.getCueAsHTML ? c.getCueAsHTML().textContent : ''));
+            if (raw) {
+              cues.push({
+                id: c.id || `cue_${j + 1}`,
+                startMs: Math.round(c.startTime * 1000),
+                endMs: Math.round(c.endTime * 1000),
+                text: raw.trim()
+              });
+            }
+          }
+        }
+        tracks.push({
+          id: `track:${tr.language || i}`,
+          language: tr.language || 'en',
+          label: tr.label || tr.language || `Track ${i + 1}`,
+          kind: tr.kind || 'subtitles',
+          format: 'webvtt',
+          source: 'texttrack',
+          live: false,
+          completeness: cues.length > 0 ? 'full' : 'loaded-window',
+          cues: cues
+        });
+      }
+      return tracks;
+    },
+    parse: function(rawCuesOrData, options = {}) {
+      const cues = [];
+      if (Array.isArray(rawCuesOrData)) {
+        rawCuesOrData.forEach((c, idx) => {
+          cues.push({
+            id: c.id || `cue_${idx + 1}`,
+            startMs: Math.round(c.startTime !== undefined ? c.startTime * 1000 : (c.startMs || 0)),
+            endMs: Math.round(c.endTime !== undefined ? c.endTime * 1000 : (c.endMs || 0)),
+            text: (c.text || '').trim()
+          });
+        });
+      }
+      return {
+        id: options.id || 'html5_track',
+        language: options.language || 'en',
+        label: options.label || 'HTML5 Subtitles',
+        kind: 'subtitles',
+        format: 'webvtt',
+        source: 'texttrack',
+        live: false,
+        completeness: 'full',
+        cues: cues
+      };
+    }
+  };
+
+  SC.capturers = SC.capturers || {};
+  SC.capturers['html5'] = HTML5Capturer;
+  window.SubtitlesCapturers = window.SubtitlesCapturers || {};
+  window.SubtitlesCapturers['html5'] = HTML5Capturer;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = HTML5Capturer;
+  }
 })();
+

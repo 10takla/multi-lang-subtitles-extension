@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML5 Video & WebVTT Capturer Stand</title>
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --accent-blue: #388bfd;
+      --accent-blue-hover: #1f6feb;
+      --accent-green: #3fb950;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .main-container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-badge {
+      background: linear-gradient(135deg, #2563eb, #388bfd);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .header-title h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .header-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Video Player Card */
+    .player-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      position: relative;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+
+    /* Minimal Controls Toolbar */
+    .controls-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #161b22;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: #21262d;
+      color: var(--text-main);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .btn:hover {
+      background: #30363d;
+      border-color: #8b949e;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn.btn-primary {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue-hover);
+      color: #fff;
+    }
+
+    .btn.btn-primary:hover {
+      background: var(--accent-blue-hover);
+    }
+
+    .btn.active {
+      background: #1f6feb;
+      border-color: #58a6ff;
+      color: #ffffff;
+    }
+
+    .select-dropdown {
+      background: #21262d;
+      color: var(--text-main);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .select-dropdown:focus {
+      border-color: var(--accent-blue);
+    }
+
+    .status-tags {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: #21262d;
+      border: 1px solid var(--card-border);
+    }
+
+    .tag.tag-green {
+      color: var(--accent-green);
+      border-color: rgba(63, 185, 80, 0.35);
+      background: rgba(35, 134, 54, 0.15);
+    }
+
+    .tag-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Stand Info & Extension Elements Guide */
+    .info-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-card h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .elements-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .element-item {
+      background: #0d1117;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .element-item-header {
+      font-weight: 600;
+      color: #58a6ff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .element-item p {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    code {
+      background: rgba(110, 118, 129, 0.2);
+      color: #79c0ff;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="main-container">
+    <!-- Header -->
+    <header>
+      <div class="header-title">
+        <span class="header-badge">HTML5 WebVTT Stand</span>
+        <h1>HTML5 Video & WebVTT Capturer</h1>
+      </div>
+      <div class="header-meta">
+        Интеграция: <code>extension/content.js</code>
+      </div>
+    </header>
+
+    <!-- Video Player Card -->
+    <div class="player-card">
+      <div class="video-wrapper">
+        <video id="test-video" controls autoplay muted loop playsinline preload="auto">
+          <source src="../../../../../../test/sample.mp4" type="video/mp4">
+          <track id="track-ru" kind="subtitles" label="Русский (RU)" srclang="ru" src="subtitles_ru.vtt">
+          <track id="track-en" kind="subtitles" label="English (EN)" srclang="en" src="subtitles_en.vtt">
+          Ваш браузер не поддерживает элемент <code>video</code>.
+        </video>
+      </div>
+
+      <!-- Controls & Status Toolbar -->
+      <div class="controls-toolbar">
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btn-toggle-widget" title="Переключить панель управления расширения">
+            Панель расширения
+          </button>
+          <button class="btn" id="btn-play-pause">Пауза</button>
+          <button class="btn" id="btn-mute">Звук: Выкл</button>
+          <select class="select-dropdown" id="select-track" title="Переключить активную дорожку">
+            <option value="track:ru" selected>Русский (RU)</option>
+            <option value="track:en">English (EN)</option>
+            <option value="none">Отключить субтитры</option>
+          </select>
+        </div>
+
+        <div class="status-tags">
+          <span class="tag tag-green" id="status-capturer">
+            <span class="tag-dot"></span>
+            Расширение подключено
+          </span>
+          <span class="tag" id="status-video-state">Воспроизведение</span>
+          <span class="tag" id="status-track">Дорожка: RU</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Elements Guide -->
+    <div class="info-card">
+      <h2>Интерфейс расширения на стенде</h2>
+      <div class="elements-grid">
+        <div class="element-item">
+          <div class="element-item-header">
+            <code>.sc-video-badge-btn</code>
+          </div>
+          <p>
+            Иконка расширения в правом верхнем углу видео. Подсвечивается при обнаружении дорожек субтитров и переключает панель управления.
+          </p>
+        </div>
+        <div class="element-item">
+          <div class="element-item-header">
+            <code>.sc-video-overlay</code>
+          </div>
+          <p>
+            Оверлей субтитров в нижней части видео. Отображает захваченные реплики и их перевод поверх плеера в реальном времени.
+          </p>
+        </div>
+        <div class="element-item">
+          <div class="element-item-header">
+            <code>.sc-widget</code>
+          </div>
+          <p>
+            Плавающая панель управления со списком обнаруженных дорожек субтитров, выбором языка перевода и живым логом реплик.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Track cues initialization & offline translations setup -->
+  <script>
+    (function initStandEnvironment() {
+      // Cue definitions matching subtitles_ru.vtt and subtitles_en.vtt
+      const TRACK_DEFINITIONS = [
+        {
+          id: 'track-ru',
+          lang: 'ru',
+          cues: [
+            { start: 0.5, end: 3.0, text: 'Первая строка тестовых субтитров' },
+            { start: 3.5, end: 6.0, text: 'Вторая строка: отслеживание работает' },
+            { start: 6.5, end: 9.5, text: 'Третья строка: субтитры успешно захвачены' }
+          ]
+        },
+        {
+          id: 'track-en',
+          lang: 'en',
+          cues: [
+            { start: 0.5, end: 3.0, text: 'First line of test subtitles' },
+            { start: 3.5, end: 6.0, text: 'Second line: tracking is working' },
+            { start: 6.5, end: 9.5, text: 'Third line: subtitles captured successfully' }
+          ]
+        }
+      ];
+
+      // Offline dictionary ensuring no external network requests
+      const OFFLINE_TRANSLATIONS = {
+        'Первая строка тестовых субтитров': 'First line of test subtitles',
+        'Вторая строка: отслеживание работает': 'Second line: tracking is working',
+        'Третья строка: субтитры успешно захвачены': 'Third line: subtitles captured successfully',
+        'First line of test subtitles': 'Первая строка тестовых субтитров',
+        'Second line: tracking is working': 'Вторая строка: отслеживание работает',
+        'Third line: subtitles captured successfully': 'Третья строка: субтитры успешно захвачены'
+      };
+
+      // Populate TextTrack cues if CORS blocks .vtt under file:// protocol
+      function ensureTrackCues() {
+        TRACK_DEFINITIONS.forEach(def => {
+          const el = document.getElementById(def.id);
+          if (!el || !el.track) return;
+          const tr = el.track;
+          if (!tr.cues || tr.cues.length === 0) {
+            def.cues.forEach(c => {
+              try {
+                tr.addCue(new VTTCue(c.start, c.end, c.text));
+              } catch (_) {}
+            });
+          }
+          if (def.lang === 'ru' && (!tr.mode || tr.mode === 'disabled')) {
+            try { tr.mode = 'hidden'; } catch (_) {}
+          }
+        });
+      }
+
+      const video = document.getElementById('test-video');
+      if (video) {
+        video.addEventListener('loadedmetadata', ensureTrackCues);
+        const r = document.getElementById('track-ru');
+        const e = document.getElementById('track-en');
+        if (r) { r.addEventListener('error', ensureTrackCues); r.addEventListener('load', ensureTrackCues); }
+        if (e) { e.addEventListener('error', ensureTrackCues); e.addEventListener('load', ensureTrackCues); }
+        ensureTrackCues();
+      }
+
+      // Stand UI event bindings
+      const btnToggleWidget = document.getElementById('btn-toggle-widget');
+      const btnPlayPause = document.getElementById('btn-play-pause');
+      const btnMute = document.getElementById('btn-mute');
+      const selectTrack = document.getElementById('select-track');
+      const statusVideoState = document.getElementById('status-video-state');
+      const statusTrack = document.getElementById('status-track');
+
+      if (btnPlayPause && video) {
+        btnPlayPause.addEventListener('click', () => {
+          if (video.paused) {
+            video.play();
+          } else {
+            video.pause();
+          }
+        });
+
+        video.addEventListener('play', () => {
+          btnPlayPause.textContent = 'Пауза';
+          statusVideoState.textContent = 'Воспроизведение';
+        });
+
+        video.addEventListener('pause', () => {
+          btnPlayPause.textContent = 'Пуск';
+          statusVideoState.textContent = 'Пауза';
+        });
+      }
+
+      if (btnMute && video) {
+        btnMute.addEventListener('click', () => {
+          video.muted = !video.muted;
+          btnMute.textContent = video.muted ? 'Звук: Выкл' : 'Звук: Вкл';
+        });
+      }
+
+      if (selectTrack && video) {
+        selectTrack.addEventListener('change', () => {
+          const val = selectTrack.value;
+          statusTrack.textContent = val === 'none' ? 'Субтитры: Выкл' : (val === 'track:ru' ? 'Дорожка: RU' : 'Дорожка: EN');
+
+          for (let i = 0; i < video.textTracks.length; i++) {
+            const tr = video.textTracks[i];
+            const trackVal = `track:${tr.language || i}`;
+            if (val === 'none') {
+              tr.mode = 'disabled';
+            } else if (trackVal === val) {
+              tr.mode = 'showing';
+            } else {
+              tr.mode = 'hidden';
+            }
+          }
+
+          // If extension state is loaded, sync language selector
+          if (window.__SC?.state?.languages?.[0]) {
+            if (val !== 'none') {
+              window.__SC.state.languages[0].trackId = val;
+              if (window.__SC.renderLanguageList) window.__SC.renderLanguageList();
+            }
+          }
+        });
+      }
+
+      if (btnToggleWidget) {
+        btnToggleWidget.addEventListener('click', () => {
+          if (!window.__SC) return;
+          if (window.__SC.state?.widgetVisible) {
+            window.__SC.closeWidget();
+          } else {
+            window.__SC.openWidget();
+          }
+        });
+      }
+
+      // Offline translation interception & initial panel launch
+      window.addEventListener('load', () => {
+        ensureTrackCues();
+
+        // Hook translation to offline dictionary to prevent network requests
+        const hookOfflineTranslations = () => {
+          if (window.__SC && window.__SC.cleanText) {
+            window.__SC.fetchTranslation = async function(text, targetLang, sourceLang = 'auto', engine = 'google') {
+              const clean = window.__SC.cleanText(text);
+              if (OFFLINE_TRANSLATIONS[clean]) {
+                return OFFLINE_TRANSLATIONS[clean];
+              }
+              return clean;
+            };
+
+            // Open control panel so .sc-widget, .sc-video-badge-btn, and .sc-video-overlay are visible
+            setTimeout(() => {
+              if (window.__SC.openWidget) {
+                window.__SC.openWidget();
+              }
+            }, 500);
+            return true;
+          }
+          return false;
+        };
+
+        if (!hookOfflineTranslations()) {
+          const checkInterval = setInterval(() => {
+            if (hookOfflineTranslations()) {
+              clearInterval(checkInterval);
+            }
+          }, 100);
+          setTimeout(() => clearInterval(checkInterval), 5000);
+        }
+      });
+    })();
+  </script>
+
+  <!-- Connect extension main entry point -->
+  <script src="../../../../../content.js"></script>
+
+</body>
+</html>

@@ -48,6 +48,13 @@
       return;
     }
 
+    // Make element accessible to layout calculation before reading dimensions to prevent unaligned jumps
+    const wasHidden = SC.overlayEl.classList.contains('sc-hidden');
+    if (wasHidden) {
+      SC.overlayEl.style.visibility = 'hidden';
+      SC.overlayEl.classList.remove('sc-hidden');
+    }
+
     // Scale font size dynamically with video size
     const scaleFactor = Math.max(0.7, Math.min(1.6, vRect.width / 800));
     const dynamicFontSize = Math.round(SC.state.fontSize * scaleFactor);
@@ -78,7 +85,7 @@
 
     SC.overlayEl.style.left = `${Math.round(posX)}px`;
     SC.overlayEl.style.top = `${Math.round(posY)}px`;
-    SC.overlayEl.classList.remove('sc-hidden');
+    SC.overlayEl.style.visibility = '';
     if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
   };
 

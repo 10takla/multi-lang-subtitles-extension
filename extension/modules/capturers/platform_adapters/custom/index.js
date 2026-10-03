@@ -305,4 +305,72 @@
     }
     return null;
   };
+
+  const CustomCapturer = {
+    name: 'custom',
+    capture: async function(options = {}) {
+      if (SC.scanPageForSubtitleTracks) {
+        SC.scanPageForSubtitleTracks();
+      }
+      const tracks = [];
+      if (SC.customCaptionTracks && SC.customCaptionTracks.length > 0) {
+        SC.customCaptionTracks.forEach(cTr => {
+          const cues = [];
+          const rawCues = SC.customTrackCues.get(cTr.id) || [];
+          rawCues.forEach((c, idx) => {
+            const raw = SC.cleanText ? SC.cleanText(c.text || '') : (c.text || '');
+            if (raw) {
+              cues.push({
+                id: `cue_${idx + 1}`,
+                startMs: Math.round(c.start * 1000),
+                endMs: Math.round(c.end * 1000),
+                text: raw.trim()
+              });
+            }
+          });
+          tracks.push({
+            id: cTr.id,
+            language: cTr.label && cTr.label.toLowerCase().includes('eng') ? 'en' : (cTr.label && cTr.label.toLowerCase().includes('рус') ? 'ru' : 'unknown'),
+            label: cTr.label || 'Кастомные субтитры',
+            kind: 'subtitles',
+            format: 'webvtt',
+            source: 'file',
+            live: false,
+            completeness: cues.length > 0 ? 'full' : 'loaded-window',
+            cues: cues
+          });
+        });
+      }
+      return tracks;
+    },
+    parse: function(rawVttText, options = {}) {
+      const rawCues = SC.parseVttCues ? SC.parseVttCues(rawVttText) : [];
+      const cues = rawCues.map((c, idx) => ({
+        id: `cue_${idx + 1}`,
+        startMs: Math.round(c.start * 1000),
+        endMs: Math.round(c.end * 1000),
+        text: (SC.cleanText ? SC.cleanText(c.text) : c.text).trim()
+      }));
+      return {
+        id: options.id || 'custom_track',
+        language: options.language || 'en',
+        label: options.label || 'Custom Subtitles',
+        kind: 'subtitles',
+        format: 'webvtt',
+        source: 'file',
+        live: false,
+        completeness: 'full',
+        cues: cues
+      };
+    }
+  };
+
+  SC.capturers = SC.capturers || {};
+  SC.capturers['custom'] = CustomCapturer;
+  window.SubtitlesCapturers = window.SubtitlesCapturers || {};
+  window.SubtitlesCapturers['custom'] = CustomCapturer;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = CustomCapturer;
+  }
 })();
+

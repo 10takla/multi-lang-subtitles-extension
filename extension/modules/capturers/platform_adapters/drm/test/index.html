@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DRM VOD Subtitles Test Stand (Netflix / OTT Mock)</title>
+  <style>
+    :root {
+      --bg-color: #141414;
+      --card-bg: #1f1f1f;
+      --card-border: #333333;
+      --accent-red: #e50914;
+      --accent-green: #46d369;
+      --text-main: #ffffff;
+      --text-muted: #aaaaaa;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .main-container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 16px;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-title h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-vod {
+      background-color: var(--accent-red);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Player Container (Netflix / OTT layout emulation) */
+    .netflix-player-container {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video.nf-video-player {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+      display: block;
+    }
+
+    /* Out-of-band TimedText Overlay (Netflix styled) */
+    .player-timedtext {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      padding-bottom: 60px;
+      z-index: 20;
+      user-select: none;
+    }
+
+    .player-timedtext-text-container {
+      max-width: 85%;
+      text-align: center;
+      display: inline-block;
+      transition: opacity 0.15s ease-in-out;
+    }
+
+    .player-timedtext-line {
+      display: inline-block;
+      font-family: var(--font-family);
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.4;
+      color: #ffffff;
+      background-color: rgba(0, 0, 0, 0.78);
+      padding: 4px 14px;
+      border-radius: 4px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .player-timedtext-line:empty {
+      display: none;
+    }
+
+    /* OTT Overlay Watermark / DRM Badge */
+    .player-drm-watermark {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 5px 10px;
+      font-size: 11px;
+      color: #ccc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 25;
+      pointer-events: none;
+    }
+
+    .drm-status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="main-container">
+    <header>
+      <div class="brand-title">
+        <span class="badge-vod">DRM VOD</span>
+        <h1>Mock Test Stand (OTT / Netflix Player)</h1>
+      </div>
+      <div style="font-size: 13px; color: var(--text-muted);">
+        Метод захвата: drm (DRM VOD / OTT TimedText)
+      </div>
+    </header>
+
+    <!-- Netflix / OTT Player Container -->
+    <div class="netflix-player-container" data-uia="player-container" id="player-container">
+      <video
+        id="drm-video"
+        class="nf-video-player"
+        autoplay
+        muted
+        loop
+        playsinline
+        controls
+        data-drm-type="widevine-mock"
+        data-drm-status="protected"
+      >
+        <source src="../../../../../../test/sample.mp4" type="video/mp4">
+        Ваш браузер не поддерживает элемент <code>video</code>.
+      </video>
+
+      <!-- DRM Protection Overlay Badge -->
+      <div class="player-drm-watermark" id="drm-watermark">
+        <span class="drm-status-indicator"></span>
+        <span>DRM Protected (Widevine L3 Mock)</span>
+      </div>
+
+      <!-- Out-of-band Timed-Text / IMSC Subtitles Container -->
+      <div class="player-timedtext" data-uia="player-timedtext" id="player-timedtext">
+        <div class="player-timedtext-text-container" data-uia="timedtext-container" id="timedtext-container">
+          <span class="player-timedtext-line" id="timedtext-target"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Эмуляция защищенного DRM VOD окружения (Netflix / Kinopoisk / OTT Player)
+     * и out-of-band Timed-Text (IMSC1 / TTML) субтитров.
+     */
+    (function () {
+      // 1. Определение TTML / IMSC потоков субтитров
+      const TIMED_TEXT_STREAMS = {
+        ru: {
+          lang: 'ru',
+          label: 'Русский (IMSC1)',
+          format: 'TimedText/IMSC1',
+          cues: [
+            { id: 'cue-ru-1', begin: 0.6, end: 2.8, text: 'Добро пожаловать в защищенный стриминг (DRM VOD).' },
+            { id: 'cue-ru-2', begin: 3.2, end: 6.2, text: 'Субтитры передаются через out-of-band поток TimedText / IMSC1.' },
+            { id: 'cue-ru-3', begin: 6.6, end: 9.6, text: 'Синхронизация с защищенным медиа-контентом активна.' }
+          ]
+        },
+        en: {
+          lang: 'en',
+          label: 'English (TTML)',
+          format: 'TimedText/TTML',
+          cues: [
+            { id: 'cue-en-1', begin: 0.6, end: 2.8, text: 'Welcome to protected DRM VOD stream.' },
+            { id: 'cue-en-2', begin: 3.2, end: 6.2, text: 'Subtitles delivered via out-of-band TimedText / IMSC1 stream.' },
+            { id: 'cue-en-3', begin: 6.6, end: 9.6, text: 'Synchronized playback with protected media is active.' }
+          ]
+        }
+      };
+
+      const video = document.getElementById('drm-video');
+      const timedTextTarget = document.getElementById('timedtext-target');
+      let currentTrack = 'ru';
+      let activeCue = null;
+
+      // 2. Инициализация нативных / out-of-band video.textTracks
+      try {
+        const ruTrack = video.addTextTrack('subtitles', 'Русский (IMSC1)', 'ru');
+        ruTrack.mode = 'hidden';
+        TIMED_TEXT_STREAMS.ru.cues.forEach(c => {
+          if (typeof VTTCue !== 'undefined') {
+            ruTrack.addCue(new VTTCue(c.begin, c.end, c.text));
+          }
+        });
+
+        const enTrack = video.addTextTrack('subtitles', 'English (TTML)', 'en');
+        enTrack.mode = 'hidden';
+        TIMED_TEXT_STREAMS.en.cues.forEach(c => {
+          if (typeof VTTCue !== 'undefined') {
+            enTrack.addCue(new VTTCue(c.begin, c.end, c.text));
+          }
+        });
+      } catch (e) {
+        console.warn('Could not initialize video.textTracks:', e);
+      }
+
+      // 3. Синхронизация DOM TimedText субтитров с видеопотоком
+      function updateSubtitles() {
+        if (!video || !timedTextTarget) return;
+        const currentTime = video.currentTime;
+        const stream = TIMED_TEXT_STREAMS[currentTrack];
+
+        if (!stream) {
+          if (timedTextTarget.textContent !== '') {
+            timedTextTarget.textContent = '';
+          }
+          activeCue = null;
+          return;
+        }
+
+        const matchingCue = stream.cues.find(c => currentTime >= c.begin && currentTime <= c.end);
+
+        if (matchingCue) {
+          if (activeCue !== matchingCue) {
+            activeCue = matchingCue;
+            timedTextTarget.textContent = matchingCue.text;
+          }
+        } else {
+          if (activeCue !== null) {
+            activeCue = null;
+            timedTextTarget.textContent = '';
+          }
+        }
+      }
+
+      // Подписка на события медиа
+      video.addEventListener('timeupdate', updateSubtitles);
+      video.addEventListener('seeking', updateSubtitles);
+      video.addEventListener('seeked', updateSubtitles);
+      video.addEventListener('loadedmetadata', updateSubtitles);
+
+      // 4. Эмуляция DRM API и OTT Player контекста
+      window.__DRM_VOD_CONTEXT__ = {
+        isDrmProtected: true,
+        keySystem: 'com.widevine.alpha',
+        securityLevel: 'L3',
+        status: 'Mock Active',
+        cdmSession: {
+          sessionId: 'mock-widevine-session-' + Math.floor(Math.random() * 100000),
+          keyStatus: 'usable',
+          expiration: Infinity
+        },
+        activeTrack: () => currentTrack,
+        setTrack: (lang) => {
+          currentTrack = lang;
+          updateSubtitles();
+        },
+        getAvailableTracks: () => Object.values(TIMED_TEXT_STREAMS).map(s => ({
+          lang: s.lang,
+          label: s.label,
+          format: s.format,
+          cuesCount: s.cues.length
+        })),
+        getCurrentCue: () => activeCue
+      };
+
+      // Netflix Player API Mock
+      window.netflix = window.netflix || {};
+      window.netflix.appContext = window.netflix.appContext || {
+        state: {
+          playerApp: {
+            getAPI: () => ({
+              videoPlayer: {
+                getVideoPlayerBySessionId: () => ({
+                  getCurrentTime: () => video.currentTime * 1000,
+                  getDuration: () => video.duration * 1000,
+                  getTimedTextTrackList: () => Object.values(TIMED_TEXT_STREAMS).map(s => ({
+                    bcp47: s.lang,
+                    displayName: s.label,
+                    isNone: false
+                  }))
+                })
+              }
+            })
+          }
+        }
+      };
+
+      // Автозапуск
+      video.play().catch(err => {
+        console.warn('Autoplay prevented or handled:', err);
+      });
+    })();
+  </script>
+
+  <!-- Точка входа расширения -->
+  <script src="../../../../../content.js"></script>
+</body>
+</html>

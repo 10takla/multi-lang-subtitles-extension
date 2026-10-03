@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming Subtitles Test Stand (HLS / DASH)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --accent-hls: #38bdf8;
+      --accent-dash: #a855f7;
+      --accent: var(--accent-hls);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #22c55e;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      padding: 24px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .header-title h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .badge.dash {
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--accent-dash);
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+
+    .badge-live {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .badge-live.pulse::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Player Card */
+    .player-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .video-viewport {
+      position: relative;
+      background: #000;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: #141e33;
+      border-top: 1px solid var(--card-border);
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 4px;
+      background: #0b1120;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+
+    .btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      color: var(--text-main);
+    }
+
+    .btn.active {
+      background: var(--card-bg);
+      color: var(--text-main);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-hls.active {
+      color: var(--accent-hls);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .btn-dash.active {
+      color: var(--accent-dash);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+    }
+
+    select.stream-select {
+      background: #0b1120;
+      color: var(--text-main);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.82rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Stand Info Note */
+    .stand-note {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stand-note code {
+      font-family: var(--font-mono);
+      background: #0b1120;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #38bdf8;
+      font-size: 0.8rem;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-title">
+        <h1>Тестовый стенд потокового видео (HLS / DASH)</h1>
+        <span id="badge-stream-type" class="badge">HLS WebVTT</span>
+        <span id="badge-live-mode" class="badge badge-live pulse">Live Buffer</span>
+      </div>
+      <div>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">
+          Режим захвата: <strong>streaming</strong> (сегменты потока / textTracks)
+        </span>
+      </div>
+    </header>
+
+    <!-- Player Card -->
+    <div class="player-card">
+      <!-- Video Viewport -->
+      <div class="video-viewport">
+        <video id="player-video" controls autoplay muted loop playsinline>
+          <source src="../../../../../../test/sample.mp4" type="video/mp4">
+          Ваш браузер не поддерживает элемент <code>video</code>.
+        </video>
+      </div>
+
+      <!-- Controls Toolbar -->
+      <div class="controls-bar">
+        <div class="control-group">
+          <span class="control-label">Протокол:</span>
+          <div class="button-group">
+            <button id="btn-proto-hls" class="btn btn-hls active" onclick="streamingPlayer.setStreamType('HLS')">HLS (WebVTT)</button>
+            <button id="btn-proto-dash" class="btn btn-dash" onclick="streamingPlayer.setStreamType('DASH')">DASH (TTML)</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-label">Поток:</span>
+          <div class="button-group">
+            <button id="btn-mode-live" class="btn active" onclick="streamingPlayer.setMode('LIVE')">Live</button>
+            <button id="btn-mode-vod" class="btn" onclick="streamingPlayer.setMode('VOD')">VOD</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-label">Дорожка:</span>
+          <select id="track-select" class="stream-select" onchange="streamingPlayer.setTrack(this.value)">
+            <option value="ru" selected>Русский (ru)</option>
+            <option value="en">English (en)</option>
+            <option value="all">Все дорожки (ru + en)</option>
+            <option value="off">Выключены</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stand Info Note -->
+    <div class="stand-note">
+      <span>ℹ️</span>
+      <span>
+        Интерфейс расширения работает напрямую: иконка у видео (<code>.sc-video-badge-btn</code>), плавающая панель управления и оверлей субтитров поверх плеера.
+      </span>
+    </div>
+
+    <footer>
+      Тестовый стенд потокового видео для захвата HLS WebVTT / DASH TTML субтитров. Глобальный объект: <code>window.__STREAMING_PLAYER__</code>.
+    </footer>
+  </div>
+
+  <script>
+    /**
+     * STREAMING PLAYER EMULATOR (HLS / DASH)
+     * Simulates streaming manifest parsing, chunked subtitle loading,
+     * buffer windows, and synchronizes cues with native video.textTracks.
+     */
+    (function () {
+      'use strict';
+
+      // 1. MOCK DATA DEFINITIONS
+      const MOCK_DATA = {
+        HLS: {
+          masterPlaylist: [
+            '#EXTM3U',
+            '#EXT-X-VERSION:6',
+            '#EXT-X-INDEPENDENT-SEGMENTS',
+            '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Русский",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="ru",URI="subtitles/ru/prog_index.m3u8"',
+            '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE="en",URI="subtitles/en/prog_index.m3u8"',
+            '#EXT-X-STREAM-INF:BANDWIDTH=2149280,RESOLUTION=1280x720,SUBTITLES="subs"',
+            'video/720p/prog_index.m3u8'
+          ].join('\n'),
+
+          mediaPlaylistRu: [
+            '#EXTM3U',
+            '#EXT-X-TARGETDURATION:4',
+            '#EXT-X-VERSION:3',
+            '#EXT-X-MEDIA-SEQUENCE:0',
+            '#EXTINF:3.500,',
+            'seg-001-ru.vtt',
+            '#EXTINF:3.000,',
+            'seg-002-ru.vtt',
+            '#EXTINF:3.500,',
+            'seg-003-ru.vtt',
+            '#EXT-X-ENDLIST'
+          ].join('\n'),
+
+          mediaPlaylistEn: [
+            '#EXTM3U',
+            '#EXT-X-TARGETDURATION:4',
+            '#EXT-X-VERSION:3',
+            '#EXT-X-MEDIA-SEQUENCE:0',
+            '#EXTINF:3.500,',
+            'seg-001-en.vtt',
+            '#EXTINF:3.000,',
+            'seg-002-en.vtt',
+            '#EXTINF:3.500,',
+            'seg-003-en.vtt',
+            '#EXT-X-ENDLIST'
+          ].join('\n'),
+
+          segments: {
+            ru: [
+              {
+                id: 'seg-001-ru.vtt',
+                sequence: 1,
+                startTime: 0.5,
+                endTime: 3.0,
+                duration: 2.5,
+                mimeType: 'text/vtt',
+                cues: [
+                  { id: 'hls-ru-1', startTime: 0.5, endTime: 3.0, text: '[HLS VTT] Первая строка: поток инициализирован' }
+                ]
+              },
+              {
+                id: 'seg-002-ru.vtt',
+                sequence: 2,
+                startTime: 3.5,
+                endTime: 6.0,
+                duration: 2.5,
+                mimeType: 'text/vtt',
+                cues: [
+                  { id: 'hls-ru-2', startTime: 3.5, endTime: 6.0, text: '[HLS VTT] Вторая строка: сегмент WebVTT загружен' }
+                ]
+              },
+              {
+                id: 'seg-003-ru.vtt',
+                sequence: 3,
+                startTime: 6.5,
+                endTime: 9.5,
+                duration: 3.0,
+                mimeType: 'text/vtt',
+                cues: [
+                  { id: 'hls-ru-3', startTime: 6.5, endTime: 9.5, text: '[HLS VTT] Третья строка: адаптивный HLS стриминг активен' }
+                ]
+              }
+            ],
+            en: [
+              {
+                id: 'seg-001-en.vtt',
+                sequence: 1,
+                startTime: 0.5,
+                endTime: 3.0,
+                duration: 2.5,
+                mimeType: 'text/vtt',
+                cues: [
+                  { id: 'hls-en-1', startTime: 0.5, endTime: 3.0, text: '[HLS VTT] First chunk: stream initialized' }
+                ]
+              },
+              {
+                id: 'seg-002-en.vtt',
+                sequence: 2,
+                startTime: 3.5,
+                endTime: 6.0,
+                duration: 2.5,
+                mimeType: 'text/vtt',
+                cues: [
+                  { id: 'hls-en-2', startTime: 3.5, endTime: 6.0, text: '[HLS VTT] Second chunk: WebVTT segment received' }
+                ]
+              },
+              {
+                id: 'seg-003-en.vtt',
+                sequence: 3,
+                startTime: 6.5,
+                endTime: 9.5,
+                duration: 3.0,
+                mimeType: 'text/vtt',
+                cues: [
+                  { id: 'hls-en-3', startTime: 6.5, endTime: 9.5, text: '[HLS VTT] Third chunk: adaptive HLS stream active' }
+                ]
+              }
+            ]
+          }
+        },
+
+        DASH: {
+          mpdManifest: [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-live:2011" type="static" mediaPresentationDuration="PT10S">',
+            '  <Period id="P0" start="PT0S">',
+            '    <AdaptationSet id="sub-ru" contentType="text" mimeType="application/ttml+xml" lang="ru">',
+            '      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="subtitle"/>',
+            '      <Representation id="rep-sub-ru" bandwidth="1000">',
+            '        <SegmentTemplate timescale="1000" duration="3500" media="dash_sub_ru_$Number$.ttml" startNumber="1"/>',
+            '      </Representation>',
+            '    </AdaptationSet>',
+            '    <AdaptationSet id="sub-en" contentType="text" mimeType="application/ttml+xml" lang="en">',
+            '      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="subtitle"/>',
+            '      <Representation id="rep-sub-en" bandwidth="1000">',
+            '        <SegmentTemplate timescale="1000" duration="3500" media="dash_sub_en_$Number$.ttml" startNumber="1"/>',
+            '      </Representation>',
+            '    </AdaptationSet>',
+            '  </Period>',
+            '</MPD>'
+          ].join('\n'),
+
+          segments: {
+            ru: [
+              {
+                id: 'dash_sub_ru_1.ttml',
+                sequence: 1,
+                startTime: 0.5,
+                endTime: 3.0,
+                duration: 2.5,
+                mimeType: 'application/ttml+xml',
+                cues: [
+                  { id: 'dash-ru-1', startTime: 0.5, endTime: 3.0, text: '[DASH TTML] Первый блок: AdaptationSet text/xml' }
+                ]
+              },
+              {
+                id: 'dash_sub_ru_2.ttml',
+                sequence: 2,
+                startTime: 3.5,
+                endTime: 6.0,
+                duration: 2.5,
+                mimeType: 'application/ttml+xml',
+                cues: [
+                  { id: 'dash-ru-2', startTime: 3.5, endTime: 6.0, text: '[DASH TTML] Второй блок: таймкод TTML синхронизирован' }
+                ]
+              },
+              {
+                id: 'dash_sub_ru_3.ttml',
+                sequence: 3,
+                startTime: 6.5,
+                endTime: 9.5,
+                duration: 3.0,
+                mimeType: 'application/ttml+xml',
+                cues: [
+                  { id: 'dash-ru-3', startTime: 6.5, endTime: 9.5, text: '[DASH TTML] Третий блок: DASH стрим распознан' }
+                ]
+              }
+            ],
+            en: [
+              {
+                id: 'dash_sub_en_1.ttml',
+                sequence: 1,
+                startTime: 0.5,
+                endTime: 3.0,
+                duration: 2.5,
+                mimeType: 'application/ttml+xml',
+                cues: [
+                  { id: 'dash-en-1', startTime: 0.5, endTime: 3.0, text: '[DASH TTML] First chunk: AdaptationSet text/xml' }
+                ]
+              },
+              {
+                id: 'dash_sub_en_2.ttml',
+                sequence: 2,
+                startTime: 3.5,
+                endTime: 6.0,
+                duration: 2.5,
+                mimeType: 'application/ttml+xml',
+                cues: [
+                  { id: 'dash-en-2', startTime: 3.5, endTime: 6.0, text: '[DASH TTML] Second chunk: TTML timecode matched' }
+                ]
+              },
+              {
+                id: 'dash_sub_en_3.ttml',
+                sequence: 3,
+                startTime: 6.5,
+                endTime: 9.5,
+                duration: 3.0,
+                mimeType: 'application/ttml+xml',
+                cues: [
+                  { id: 'dash-en-3', startTime: 6.5, endTime: 9.5, text: '[DASH TTML] Third chunk: DASH stream confirmed' }
+                ]
+              }
+            ]
+          }
+        }
+      };
+
+      // 2. STREAMING PLAYER MOCK CLASS
+      class StreamingPlayerMock {
+        constructor(videoElement) {
+          this.video = videoElement;
+          this.streamType = 'HLS'; // 'HLS' | 'DASH'
+          this.mode = 'LIVE';       // 'LIVE' | 'VOD'
+          this.currentTrack = 'ru'; // 'ru' | 'en' | 'all' | 'off'
+
+          this.nativeTrackRu = null;
+          this.nativeTrackEn = null;
+
+          this.initNativeTracks();
+          this.syncNativeTrackCues();
+          this.attachVideoEvents();
+        }
+
+        initNativeTracks() {
+          try {
+            if (this.video && this.video.addTextTrack) {
+              this.nativeTrackRu = this.video.addTextTrack('subtitles', 'Русский (HLS/DASH)', 'ru');
+              this.nativeTrackRu.mode = 'hidden';
+
+              this.nativeTrackEn = this.video.addTextTrack('subtitles', 'English (HLS/DASH)', 'en');
+              this.nativeTrackEn.mode = 'hidden';
+            }
+          } catch (e) {
+            console.warn('Native addTextTrack error:', e);
+          }
+        }
+
+        syncNativeTrackCues() {
+          try {
+            const typeData = MOCK_DATA[this.streamType];
+            if (!typeData || !typeData.segments) return;
+
+            const CueConstructor = (typeof VTTCue !== 'undefined') ? VTTCue : (typeof window.TextTrackCue !== 'undefined' ? window.TextTrackCue : null);
+
+            // Sync Russian Track
+            if (this.nativeTrackRu) {
+              while (this.nativeTrackRu.cues && this.nativeTrackRu.cues.length > 0) {
+                this.nativeTrackRu.removeCue(this.nativeTrackRu.cues[0]);
+              }
+              const shouldEnableRu = (this.currentTrack === 'ru' || this.currentTrack === 'all');
+              this.nativeTrackRu.mode = shouldEnableRu ? 'hidden' : 'disabled';
+
+              if (shouldEnableRu && CueConstructor) {
+                const ruSegments = typeData.segments.ru || [];
+                ruSegments.forEach(seg => {
+                  seg.cues.forEach(cue => {
+                    const c = new CueConstructor(cue.startTime, cue.endTime, cue.text);
+                    c.id = cue.id;
+                    this.nativeTrackRu.addCue(c);
+                  });
+                });
+              }
+            }
+
+            // Sync English Track
+            if (this.nativeTrackEn) {
+              while (this.nativeTrackEn.cues && this.nativeTrackEn.cues.length > 0) {
+                this.nativeTrackEn.removeCue(this.nativeTrackEn.cues[0]);
+              }
+              const shouldEnableEn = (this.currentTrack === 'en' || this.currentTrack === 'all');
+              this.nativeTrackEn.mode = shouldEnableEn ? 'hidden' : 'disabled';
+
+              if (shouldEnableEn && CueConstructor) {
+                const enSegments = typeData.segments.en || [];
+                enSegments.forEach(seg => {
+                  seg.cues.forEach(cue => {
+                    const c = new CueConstructor(cue.startTime, cue.endTime, cue.text);
+                    c.id = cue.id;
+                    this.nativeTrackEn.addCue(c);
+                  });
+                });
+              }
+            }
+
+            if (window.__SC) {
+              if (window.__SC.scanPageForSubtitleTracks) window.__SC.scanPageForSubtitleTracks();
+              if (window.__SC.renderLanguageList) window.__SC.renderLanguageList();
+            }
+          } catch (e) {
+            console.warn('syncNativeTrackCues failed:', e);
+          }
+        }
+
+        attachVideoEvents() {
+          this.video.addEventListener('loadedmetadata', () => {
+            this.syncNativeTrackCues();
+          });
+        }
+
+        setStreamType(type) {
+          if (this.streamType === type) return;
+          this.streamType = type;
+          const isHls = type === 'HLS';
+
+          document.documentElement.style.setProperty('--accent', isHls ? 'var(--accent-hls)' : 'var(--accent-dash)');
+
+          const badgeStreamType = document.getElementById('badge-stream-type');
+          if (badgeStreamType) {
+            badgeStreamType.textContent = isHls ? 'HLS WebVTT' : 'DASH TTML';
+            badgeStreamType.className = isHls ? 'badge' : 'badge dash';
+          }
+
+          const btnProtoHls = document.getElementById('btn-proto-hls');
+          const btnProtoDash = document.getElementById('btn-proto-dash');
+          if (btnProtoHls) btnProtoHls.className = 'btn btn-hls' + (isHls ? ' active' : '');
+          if (btnProtoDash) btnProtoDash.className = 'btn btn-dash' + (!isHls ? ' active' : '');
+
+          this.syncNativeTrackCues();
+        }
+
+        setMode(mode) {
+          if (this.mode === mode) return;
+          this.mode = mode;
+          const isLive = mode === 'LIVE';
+
+          const badgeLiveMode = document.getElementById('badge-live-mode');
+          if (badgeLiveMode) {
+            badgeLiveMode.textContent = isLive ? 'Live Buffer' : 'VOD Stream';
+            badgeLiveMode.className = isLive ? 'badge badge-live pulse' : 'badge';
+          }
+
+          const btnModeLive = document.getElementById('btn-mode-live');
+          const btnModeVod = document.getElementById('btn-mode-vod');
+          if (btnModeLive) btnModeLive.className = 'btn' + (isLive ? ' active' : '');
+          if (btnModeVod) btnModeVod.className = 'btn' + (!isLive ? ' active' : '');
+        }
+
+        setTrack(trackId) {
+          this.currentTrack = trackId;
+          this.syncNativeTrackCues();
+        }
+
+        isLive() {
+          return this.mode === 'LIVE';
+        }
+
+        getManifestText() {
+          if (this.streamType === 'HLS') {
+            const track = (this.currentTrack === 'en') ? 'en' : 'ru';
+            return [
+              '# --- Master Playlist (master.m3u8) ---',
+              MOCK_DATA.HLS.masterPlaylist,
+              '',
+              `# --- Subtitle Media Playlist (${track}.m3u8) ---`,
+              track === 'en' ? MOCK_DATA.HLS.mediaPlaylistEn : MOCK_DATA.HLS.mediaPlaylistRu
+            ].join('\n');
+          } else {
+            return MOCK_DATA.DASH.mpdManifest;
+          }
+        }
+
+        getCurrentSegments() {
+          const typeData = MOCK_DATA[this.streamType];
+          if (!typeData || !typeData.segments) return [];
+          const track = this.currentTrack === 'en' ? 'en' : 'ru';
+          return typeData.segments[track] || [];
+        }
+
+        getState() {
+          return {
+            streamType: this.streamType,
+            mode: this.mode,
+            currentTrack: this.currentTrack,
+            currentTime: (this.video.currentTime || 0).toFixed(3),
+            duration: (this.video.duration || 10).toFixed(3),
+            isLive: this.isLive()
+          };
+        }
+      }
+
+      // Initialize Player Mock
+      const video = document.getElementById('player-video');
+      const player = new StreamingPlayerMock(video);
+
+      window.__STREAMING_PLAYER__ = player;
+      window.streamingPlayer = player;
+      window.hlsPlayer = player;
+      window.dashPlayer = player;
+
+      // Autoplay handler
+      video.play().catch(e => {
+        console.log('Autoplay handled/muted:', e);
+      });
+
+      // Automatically open the extension widget once loaded so the real extension UI is visible immediately
+      const checkExtensionInterval = setInterval(() => {
+        if (window.__SC && window.__SC.openWidget && window.__SC.state) {
+          window.__SC.openWidget();
+          clearInterval(checkExtensionInterval);
+        }
+      }, 200);
+      setTimeout(() => clearInterval(checkExtensionInterval), 4000);
+    })();
+  </script>
+
+  <!-- Point of entry for subtitles extension -->
+  <script src="../../../../../content.js"></script>
+</body>
+</html>

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hardsub Capturer — Test Stand</title>
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --accent-color: #58a6ff;
+      --accent-green: #3fb950;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 24px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    header {
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-info h1 {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-color);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-source {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      font-weight: 500;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    /* Player Container */
+    .player-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .player-wrapper {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video.main-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+
+    /* Canvas overlaid for frame-synchronized hardsub rendering */
+    #hardsub-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      z-index: 2;
+    }
+  </style>
+
+  <script>
+    // Предварительная инициализация дорожек расширения для Hardsub
+    window.__SC = window.__SC || {};
+    window.__SC.customCaptionTracks = [
+      { id: 'hardsub', label: 'Вшитые субтитры (Hardsub)', language: 'ru' }
+    ];
+    window.__SC.getCustomAvailableTracks = function() {
+      return [
+        { value: 'custom:hardsub', label: '[Hardsub] Вшитые субтитры (RU)' }
+      ];
+    };
+  </script>
+
+  <!-- Extension Main Entry Point -->
+  <script src="../../../../../content.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-info">
+        <h1>
+          Hardsub Capturer Stand
+          <span class="header-badge">Вшитые субтитры</span>
+        </h1>
+        <div class="subtitle">Тестирование захвата и перевода вшитых субтитров интерфейсом расширения</div>
+      </div>
+      <div>
+        <span class="badge-source">sample.mp4 (Hardsub Stream)</span>
+      </div>
+    </header>
+
+    <!-- Main Player Card -->
+    <div class="player-card">
+      <div class="player-wrapper" id="player-container">
+        <!-- Main video element detected and hooked by extension -->
+        <video 
+          id="video-player" 
+          class="main-video" 
+          autoplay 
+          muted 
+          loop 
+          playsinline 
+          controls 
+          src="../../../../../../test/sample.mp4">
+          <source src="../../../../../../test/sample.mp4" type="video/mp4">
+        </video>
+
+        <!-- Canvas rendering burned-in hardsub subtitle frames -->
+        <canvas id="hardsub-canvas" width="320" height="176"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // --- Реплики вшитых субтитров (Hardsub Cues) ---
+      const HARDSUB_CUES = [
+        {
+          id: 'cue-1',
+          start: 0.5,
+          end: 2.6,
+          text: 'Классический Hardsub: белый текст с черной обводкой',
+          style: {
+            font: 'bold 15px sans-serif',
+            fillStyle: '#ffffff',
+            strokeStyle: '#000000',
+            lineWidth: 3.5,
+            position: 'bottom',
+            offsetY: 24,
+            shadowColor: 'transparent',
+            shadowBlur: 0,
+            background: null
+          }
+        },
+        {
+          id: 'cue-2',
+          start: 2.8,
+          end: 5.0,
+          text: 'Стиль с мягкой тенью и подложкой',
+          style: {
+            font: '600 14px sans-serif',
+            fillStyle: '#ffd700',
+            strokeStyle: '#111111',
+            lineWidth: 2,
+            position: 'bottom',
+            offsetY: 24,
+            shadowColor: 'rgba(0, 0, 0, 0.9)',
+            shadowBlur: 6,
+            shadowOffsetX: 2,
+            shadowOffsetY: 2,
+            background: 'rgba(0, 0, 0, 0.55)'
+          }
+        },
+        {
+          id: 'cue-3',
+          start: 5.3,
+          end: 7.5,
+          text: 'Аниме / Фэнсаб: Неоновый контур и свечение',
+          style: {
+            font: 'bold 15px sans-serif',
+            fillStyle: '#ffffff',
+            gradientFill: ['#00ffff', '#ff007f'],
+            strokeStyle: '#000033',
+            lineWidth: 4,
+            position: 'bottom',
+            offsetY: 24,
+            shadowColor: '#00ffff',
+            shadowBlur: 10,
+            background: null
+          }
+        },
+        {
+          id: 'cue-4',
+          start: 7.8,
+          end: 9.8,
+          text: 'Верхняя строка: [Примечание переводчика / Hardsub Top]',
+          style: {
+            font: 'italic 13px sans-serif',
+            fillStyle: '#e6edf3',
+            strokeStyle: '#101216',
+            lineWidth: 2,
+            position: 'top',
+            offsetY: 24,
+            shadowColor: 'rgba(0,0,0,0.8)',
+            shadowBlur: 4,
+            background: 'rgba(22, 27, 34, 0.75)'
+          }
+        }
+      ];
+
+      // --- DOM Elements ---
+      const video = document.getElementById('video-player');
+      const canvas = document.getElementById('hardsub-canvas');
+      const ctx = canvas.getContext('2d');
+
+      let lastCueId = null;
+
+      // Отрисовка субтитров непосредственно в кадр Canvas
+      function renderHardsubOnCanvas(cCtx, width, height, activeCue) {
+        if (!activeCue) return;
+
+        const style = activeCue.style;
+        cCtx.save();
+
+        cCtx.font = style.font;
+        cCtx.textAlign = 'center';
+        cCtx.textBaseline = 'middle';
+
+        const text = activeCue.text;
+        const metrics = cCtx.measureText(text);
+        const textWidth = metrics.width;
+        const textHeight = 18;
+
+        const x = width / 2;
+        const y = (style.position === 'top') ? style.offsetY : (height - style.offsetY);
+
+        // Полупрозрачный фон / подложка
+        if (style.background) {
+          const paddingX = 10;
+          const paddingY = 4;
+          const boxX = x - (textWidth / 2) - paddingX;
+          const boxY = y - (textHeight / 2) - paddingY;
+          const boxW = textWidth + (paddingX * 2);
+          const boxH = textHeight + (paddingY * 2);
+
+          cCtx.fillStyle = style.background;
+          cCtx.beginPath();
+          if (cCtx.roundRect) {
+            cCtx.roundRect(boxX, boxY, boxW, boxH, 4);
+          } else {
+            cCtx.rect(boxX, boxY, boxW, boxH);
+          }
+          cCtx.fill();
+        }
+
+        // Тень (Drop Shadow / Glow)
+        if (style.shadowColor && style.shadowColor !== 'transparent') {
+          cCtx.shadowColor = style.shadowColor;
+          cCtx.shadowBlur = style.shadowBlur || 0;
+          cCtx.shadowOffsetX = style.shadowOffsetX || 0;
+          cCtx.shadowOffsetY = style.shadowOffsetY || 0;
+        }
+
+        // Контур (Stroke)
+        if (style.lineWidth && style.strokeStyle) {
+          cCtx.strokeStyle = style.strokeStyle;
+          cCtx.lineWidth = style.lineWidth;
+          cCtx.lineJoin = 'round';
+          cCtx.strokeText(text, x, y);
+        }
+
+        // Заливка (Fill)
+        if (style.gradientFill) {
+          const grad = cCtx.createLinearGradient(x - textWidth / 2, y, x + textWidth / 2, y);
+          grad.addColorStop(0, style.gradientFill[0]);
+          grad.addColorStop(1, style.gradientFill[1]);
+          cCtx.fillStyle = grad;
+        } else {
+          cCtx.fillStyle = style.fillStyle || '#ffffff';
+        }
+
+        cCtx.fillText(text, x, y);
+        cCtx.restore();
+      }
+
+      // Главный цикл покадрового рендеринга субтитров в поток видео
+      function renderFrame() {
+        const currentTime = video.currentTime || 0;
+
+        // Поиск активной реплики
+        const activeCue = HARDSUB_CUES.find(cue => currentTime >= cue.start && currentTime <= cue.end) || null;
+
+        if (video.readyState >= 2) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          if (activeCue) {
+            renderHardsubOnCanvas(ctx, canvas.width, canvas.height, activeCue);
+          }
+        }
+
+        // Передача субтитра в интерфейс и оверлей расширения
+        handleExtensionSync(activeCue);
+
+        if ('requestVideoFrameCallback' in video) {
+          video.requestVideoFrameCallback(() => renderFrame());
+        } else {
+          requestAnimationFrame(renderFrame);
+        }
+      }
+
+      // Синхронизация распознанных реплик с расширением
+      function handleExtensionSync(activeCue) {
+        const SC = window.__SC;
+        if (!SC) return;
+
+        const currentCueId = activeCue ? activeCue.id : null;
+
+        if (currentCueId !== lastCueId) {
+          lastCueId = currentCueId;
+
+          if (activeCue) {
+            // Регистрация распознанной реплики hardsub в расширении
+            if (SC.addSubtitleLine) {
+              SC.addSubtitleLine(activeCue.text, activeCue.start);
+            }
+            if (SC.updateVideoOverlayContent) {
+              SC.updateVideoOverlayContent();
+            }
+          } else {
+            // Пауза между субтитрами — скрываем оверлей
+            if (SC.state && SC.state.currentActiveLine !== null) {
+              SC.state.currentActiveLine = null;
+              if (SC.updateVideoOverlayContent) {
+                SC.updateVideoOverlayContent();
+              }
+            }
+          }
+        }
+
+        // Убеждаемся, что иконка расширения (.sc-video-badge-btn) подключена к видео
+        if (SC.registerVideoWithSubtitles && video) {
+          SC.registerVideoWithSubtitles(video);
+        }
+      }
+
+      // Инициализация размеров
+      function initDimensions() {
+        const w = video.videoWidth || 320;
+        const h = video.videoHeight || 176;
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      video.addEventListener('loadedmetadata', initDimensions);
+      video.addEventListener('seeked', () => renderFrame());
+      video.addEventListener('timeupdate', () => {
+        if (video.paused) renderFrame();
+      });
+
+      // Автоматическое открытие панели расширения при загрузке
+      function autoOpenWidget() {
+        const SC = window.__SC;
+        if (SC && SC.openWidget && SC.shadowRoot) {
+          SC.state.activeVideo = video;
+          SC.customCaptionTracks = [
+            { id: 'hardsub', label: 'Вшитые субтитры (Hardsub)', language: 'ru' }
+          ];
+          if (SC.renderLanguageList) {
+            SC.renderLanguageList();
+          }
+          SC.registerVideoWithSubtitles(video);
+          SC.openWidget();
+        } else {
+          setTimeout(autoOpenWidget, 200);
+        }
+      }
+
+      initDimensions();
+      video.play().catch(() => {});
+      renderFrame();
+      autoOpenWidget();
+    })();
+  </script>
+</body>
+</html>

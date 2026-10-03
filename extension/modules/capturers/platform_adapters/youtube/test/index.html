@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Player Test Stand - Subtitles</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background-color: #0f0f0f;
+      color: #f1f1f1;
+      font-family: "Roboto", "Arial", sans-serif;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .yt-badge {
+      background: #ff0000;
+      color: #fff;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 14px;
+      letter-spacing: -0.5px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    /* YouTube Movie Player Mock */
+    #movie_player, .html5-video-player {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      overflow: hidden;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .html5-video-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    video.video-stream.html5-main-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Player Controls Overlay */
+    .ytp-chrome-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 52px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 30;
+      user-select: none;
+    }
+
+    .ytp-left-controls, .ytp-right-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .ytp-button {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      border-radius: 50%;
+      outline: none;
+      transition: background-color 0.2s;
+    }
+    .ytp-button:hover {
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .ytp-time-display {
+      font-size: 13px;
+      color: #ddd;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* YouTube Subtitles (CC) Button */
+    .ytp-subtitles-button {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+    }
+
+    .ytp-subtitles-button svg {
+      width: 24px;
+      height: 24px;
+      fill: #fff;
+    }
+
+    .ytp-subtitles-button[aria-pressed="true"]::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      left: 6px;
+      right: 6px;
+      height: 3px;
+      background-color: #ff0000;
+      border-radius: 2px;
+    }
+
+    .ytp-subtitles-button[aria-pressed="false"] svg {
+      opacity: 0.6;
+    }
+
+    /* Diagnostics info block */
+    .stand-info {
+      margin-top: 20px;
+      padding: 16px;
+      background: #1e1e1e;
+      border-radius: 8px;
+      border: 1px solid #333;
+    }
+    .stand-info h2 {
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 12px;
+      color: #3ea6ff;
+    }
+    .stand-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      font-size: 13px;
+    }
+    .stand-info-item {
+      background: #2a2a2a;
+      padding: 8px 12px;
+      border-radius: 4px;
+    }
+    .stand-info-item .label {
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+    .stand-info-item .value {
+      color: #fff;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .stand-actions {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+    .lang-switcher {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    select {
+      background: #2a2a2a;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .action-btn {
+      background: #3ea6ff;
+      color: #000;
+      font-weight: 500;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+    .action-btn:hover {
+      background: #65b8ff;
+    }
+  </style>
+
+  <!-- Static YouTube initial player response emulating YouTube inline script -->
+  <script id="ytInitialPlayerResponse-script">
+    var ytInitialPlayerResponse = {
+      "captions": {
+        "playerCaptionsTracklistRenderer": {
+          "captionTracks": [
+            {
+              "baseUrl": "https://www.youtube.com/api/timedtext?v=test_stand&lang=ru&fmt=json3",
+              "name": { "simpleText": "Русский" },
+              "vssId": ".ru",
+              "languageCode": "ru",
+              "kind": "asr",
+              "isTranslatable": true
+            },
+            {
+              "baseUrl": "https://www.youtube.com/api/timedtext?v=test_stand&lang=en&fmt=json3",
+              "name": { "simpleText": "English" },
+              "vssId": ".en",
+              "languageCode": "en",
+              "isTranslatable": true
+            }
+          ]
+        }
+      }
+    };
+    window.ytInitialPlayerResponse = ytInitialPlayerResponse;
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="yt-badge">YouTube</span>
+      <h1>Изолированный тестовый стенд (YouTube Player Emulation)</h1>
+    </header>
+
+    <!-- YouTube Player Container -->
+    <div id="movie_player" class="html5-video-player ytp-exp-bottom-control-flexbox">
+      <!-- Video Element -->
+      <div class="html5-video-container">
+        <video 
+          class="video-stream html5-main-video"
+          autoplay 
+          muted 
+          loop 
+          playsinline
+          controlsList="nodownload"
+          src="../../../../../../test/sample.mp4">
+          <source src="../../../../../../test/sample.mp4" type="video/mp4">
+        </video>
+      </div>
+
+      <!-- YouTube Player Bottom Controls -->
+      <div class="ytp-chrome-bottom">
+        <div class="ytp-left-controls">
+          <button class="ytp-button" id="ytp-play-toggle" title="Воспроизвести / Пауза (k)">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="#fff" id="play-pause-icon">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+          </button>
+          <div class="ytp-time-display">
+            <span id="current-time-display">0:00</span> / <span id="duration-display">0:00</span>
+          </div>
+        </div>
+
+        <div class="ytp-right-controls">
+          <!-- YouTube CC Subtitles Button -->
+          <button class="ytp-subtitles-button ytp-button" id="ytp-cc-btn" aria-pressed="true" title="Субтитры (c)">
+            <svg viewBox="0 0 24 24">
+              <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.89-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stand Diagnostics and Controls -->
+    <div class="stand-info">
+      <h2>Диагностика окружения стенда</h2>
+      <div class="stand-info-grid">
+        <div class="stand-info-item">
+          <div class="label">Статус воспроизведения:</div>
+          <div class="value" id="diag-playback">Воспроизведение (muted)</div>
+        </div>
+        <div class="stand-info-item">
+          <div class="label">movie_player.getPlayerResponse():</div>
+          <div class="value" id="diag-player-response">OK (2 дорожки)</div>
+        </div>
+        <div class="stand-info-item">
+          <div class="label">window.ytInitialPlayerResponse:</div>
+          <div class="value" id="diag-yt-initial">OK</div>
+        </div>
+        <div class="stand-info-item">
+          <div class="label">Статус расширения:</div>
+          <div class="value" id="diag-sc-status">Инициализация...</div>
+        </div>
+        <div class="stand-info-item">
+          <div class="label">Активный субтитр (расширение):</div>
+          <div class="value" id="diag-active-text">—</div>
+        </div>
+      </div>
+
+      <div class="stand-actions">
+        <div class="lang-switcher">
+          <span>Выбрать дорожку в плеере:</span>
+          <select id="track-select">
+            <option value="ru" selected>Русский (ru)</option>
+            <option value="en">English (en)</option>
+          </select>
+        </div>
+        <button id="btn-toggle-widget" class="action-btn">Открыть панель расширения</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- YouTube Data Structures & Player Methods Emulation -->
+  <script>
+    (function initYouTubePlayerStand() {
+      // 1. Mock Subtitles Data (JSON3 YouTube TimedText format)
+      const mockTracksData = {
+        ru: {
+          languageCode: 'ru',
+          displayName: 'Русский',
+          json3: {
+            events: [
+              { tStartMs: 500, dDurationMs: 2500, segs: [{ utf8: 'Первая строка тестовых субтитров' }] },
+              { tStartMs: 3500, dDurationMs: 2500, segs: [{ utf8: 'Вторая строка: отслеживание работает' }] },
+              { tStartMs: 6500, dDurationMs: 3000, segs: [{ utf8: 'Третья строка: субтитры успешно захвачены' }] }
+            ]
+          }
+        },
+        en: {
+          languageCode: 'en',
+          displayName: 'English',
+          json3: {
+            events: [
+              { tStartMs: 500, dDurationMs: 2500, segs: [{ utf8: 'First line of test subtitles' }] },
+              { tStartMs: 3500, dDurationMs: 2500, segs: [{ utf8: 'Second line: tracking is working' }] },
+              { tStartMs: 6500, dDurationMs: 3000, segs: [{ utf8: 'Third line: subtitles captured successfully' }] }
+            ]
+          }
+        }
+      };
+
+      // Ensure window.__SC configuration for test stand
+      window.__SC = window.__SC || {};
+      window.__SC.extensionBaseUrl = '../../../../../';
+      const isYT = () => true;
+      Object.defineProperty(window.__SC, 'isYouTubePage', {
+        get: () => isYT,
+        set: () => {},
+        configurable: true
+      });
+
+      // Emulate chrome runtime in standalone/file mode if not present
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.getURL) {
+        window.chrome = window.chrome || {};
+        window.chrome.runtime = window.chrome.runtime || {};
+        window.chrome.runtime.getURL = (p) => '../../../../../' + p;
+        window.chrome.runtime.sendMessage = (msg, cb) => {
+          if (msg && msg.type === 'TRANSLATE_TEXT') {
+            if (cb) cb({ success: true, translated: '[Тест] ' + msg.text });
+          } else {
+            if (cb) cb({ success: true });
+          }
+          return Promise.resolve({ success: true });
+        };
+        window.chrome.runtime.onMessage = window.chrome.runtime.onMessage || {
+          addListener: () => {},
+          removeListener: () => {}
+        };
+      }
+
+      // Local fetch fallback interceptor to ensure requests to timedtext and translations return mocks without network
+      const originalFetch = window.fetch;
+      window.fetch = async function(input, init) {
+        const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+        if (urlStr.includes('timedtext') || urlStr.includes('fmt=json3')) {
+          const isEn = urlStr.includes('lang=en') || urlStr.includes('.en') || urlStr.includes('vssId=%2Een');
+          const data = isEn ? mockTracksData.en.json3 : mockTracksData.ru.json3;
+          return new Response(JSON.stringify(data), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (urlStr.includes('translate.googleapis.com') || urlStr.includes('translate.yandex.net')) {
+          let textParam = '';
+          try {
+            const urlObj = new URL(urlStr, window.location.href);
+            textParam = urlObj.searchParams.get('q') || urlObj.searchParams.get('text') || '';
+          } catch (_) {}
+          const translated = textParam ? `[Тест перевод] ${textParam}` : 'Тестовый перевод';
+          if (urlStr.includes('translate.yandex.net')) {
+            return new Response(JSON.stringify({ code: 200, lang: 'en-ru', text: [translated] }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          } else {
+            return new Response(JSON.stringify([[[translated, textParam, null, null, 10]], null, 'ru']), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        }
+        return originalFetch.apply(this, arguments);
+      };
+
+      // 2. YouTube Player Methods on #movie_player
+      const moviePlayer = document.getElementById('movie_player');
+      const video = moviePlayer.querySelector('video');
+      const ccBtn = document.getElementById('ytp-cc-btn');
+      const playToggleBtn = document.getElementById('ytp-play-toggle');
+      const playPauseIcon = document.getElementById('play-pause-icon');
+      const currentTimeDisplay = document.getElementById('current-time-display');
+      const durationDisplay = document.getElementById('duration-display');
+      const diagPlayback = document.getElementById('diag-playback');
+      const diagActiveText = document.getElementById('diag-active-text');
+      const diagScStatus = document.getElementById('diag-sc-status');
+      const trackSelect = document.getElementById('track-select');
+      const btnToggleWidget = document.getElementById('btn-toggle-widget');
+
+      let currentLang = 'ru';
+
+      // Emulate fallback window.ytplayer config
+      window.ytplayer = {
+        config: {
+          args: {
+            raw_player_response: window.ytInitialPlayerResponse
+          }
+        }
+      };
+
+      // Player API Methods
+      moviePlayer.getPlayerResponse = function() {
+        return window.ytInitialPlayerResponse;
+      };
+
+      moviePlayer.getOption = function(module, option) {
+        if (module === 'captions' && option === 'tracklist') {
+          return window.ytInitialPlayerResponse.captions.playerCaptionsTracklistRenderer.captionTracks.map(t => ({
+            languageCode: t.languageCode,
+            displayName: t.name.simpleText,
+            name: t.name.simpleText,
+            vssId: t.vssId,
+            baseUrl: t.baseUrl
+          }));
+        }
+        if (module === 'captions' && option === 'track') {
+          return { languageCode: currentLang };
+        }
+        return null;
+      };
+
+      moviePlayer.setOption = function(module, option, value) {
+        if (module === 'captions' && option === 'track') {
+          if (value && value.languageCode) {
+            currentLang = value.languageCode;
+            trackSelect.value = currentLang;
+            if (window.__SC && window.__SC.loadYouTubeTimedText && window.__SC.ytCaptionTracks) {
+              const tr = window.__SC.ytCaptionTracks.find(t => t.languageCode === currentLang);
+              if (tr) window.__SC.loadYouTubeTimedText(tr, `yt:${currentLang}`);
+            }
+          }
+        }
+      };
+
+      moviePlayer.getCurrentTime = function() {
+        return video.currentTime;
+      };
+
+      moviePlayer.getDuration = function() {
+        return video.duration || 0;
+      };
+
+      moviePlayer.playVideo = function() {
+        video.play();
+      };
+
+      moviePlayer.pauseVideo = function() {
+        video.pause();
+      };
+
+      moviePlayer.getPlayerState = function() {
+        return video.paused ? 2 : 1;
+      };
+
+      function formatTime(seconds) {
+        if (isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      }
+
+      // Sync player UI controls
+      video.addEventListener('timeupdate', () => {
+        currentTimeDisplay.textContent = formatTime(video.currentTime);
+        if (window.__SC && window.__SC.state) {
+          const activeLine = window.__SC.state.currentActiveLine;
+          if (activeLine && activeLine.text) {
+            diagActiveText.textContent = `"${activeLine.text}" (${activeLine.videoTime})`;
+          } else {
+            diagActiveText.textContent = '—';
+          }
+        }
+      });
+
+      video.addEventListener('loadedmetadata', () => {
+        durationDisplay.textContent = formatTime(video.duration);
+      });
+
+      video.addEventListener('play', () => {
+        diagPlayback.textContent = 'Воспроизведение';
+        playPauseIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      });
+
+      video.addEventListener('pause', () => {
+        diagPlayback.textContent = 'На паузе';
+        playPauseIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+      });
+
+      // Player Controls Event Listeners
+      let ccActive = true;
+      ccBtn.addEventListener('click', () => {
+        ccActive = !ccActive;
+        ccBtn.setAttribute('aria-pressed', ccActive ? 'true' : 'false');
+      });
+
+      playToggleBtn.addEventListener('click', () => {
+        if (video.paused) {
+          video.play();
+        } else {
+          video.pause();
+        }
+      });
+
+      trackSelect.addEventListener('change', (e) => {
+        moviePlayer.setOption('captions', 'track', { languageCode: e.target.value });
+      });
+
+      if (btnToggleWidget) {
+        btnToggleWidget.addEventListener('click', () => {
+          if (window.__SC) {
+            if (window.__SC.state && window.__SC.state.widgetVisible) {
+              if (window.__SC.closeWidget) window.__SC.closeWidget();
+              btnToggleWidget.textContent = 'Открыть панель расширения';
+            } else {
+              if (window.__SC.openWidget) window.__SC.openWidget();
+              btnToggleWidget.textContent = 'Закрыть панель расширения';
+            }
+          }
+        });
+      }
+
+      // Periodically check extension status to reflect in diagnostics
+      const extCheckTimer = setInterval(() => {
+        if (window.__SC && window.__SC.hostEl) {
+          diagScStatus.textContent = 'Активно (Shadow DOM & Overlay подключены)';
+          diagScStatus.style.color = '#4ade80';
+          clearInterval(extCheckTimer);
+        }
+      }, 300);
+
+      // Autoplay handler
+      video.play().catch(e => {
+        diagPlayback.textContent = 'Autoplay заблокирован: нажмите Play';
+      });
+    })();
+  </script>
+
+  <!-- Extension Main Entry Point -->
+  <script src="../../../../../content.js"></script>
+</body>
+</html>

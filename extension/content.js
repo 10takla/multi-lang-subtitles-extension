@@ -4,8 +4,20 @@
  */
 
 (() => {
-  const SC = window.__SC;
-  if (!SC) return;
+  window.__SC = window.__SC || {};
+  let SC = window.__SC;
+
+  // Determine base directory if loaded directly via <script src="...">
+  const currentScript = document.currentScript;
+  let baseUrl = '';
+  if (currentScript && currentScript.src) {
+    baseUrl = currentScript.src.substring(0, currentScript.src.lastIndexOf('/') + 1);
+    SC.extensionBaseUrl = baseUrl;
+  }
+
+  function startExtension() {
+    SC = window.__SC;
+    if (!SC) return;
 
   // Cross-frame state coordination for embedded video players
   const isTopFrame = window.self === window.top;
@@ -183,11 +195,56 @@
     }, 1500);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+    window.__subtitlesCapturerInjected = true;
   }
 
-  window.__subtitlesCapturerInjected = true;
+  const moduleFiles = [
+    'modules/state.js',
+    'modules/translator.js',
+    'modules/capturers/platform_adapters/youtube/index.js',
+    'modules/capturers/browser/html5/index.js',
+    'modules/capturers/platform_adapters/custom/index.js',
+    'modules/capturers/network/streaming/index.js',
+    'modules/capturers/platform_adapters/drm/index.js',
+    'modules/capturers/render/hardsub/index.js',
+    'modules/capturers.js',
+    'modules/overlay.js',
+    'modules/widget.js'
+  ];
+
+  if (!window.__SC?.initInPageWidget) {
+    function loadScript(src) {
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = (e) => {
+          console.warn('[Subtitles] Failed loading module:', src, e);
+          resolve();
+        };
+        (document.head || document.documentElement).appendChild(s);
+      });
+    }
+
+    (async () => {
+      if (baseUrl && !document.querySelector('link[data-sc-style]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = baseUrl + 'content.css';
+        link.setAttribute('data-sc-style', 'true');
+        (document.head || document.documentElement).appendChild(link);
+      }
+      for (const mod of moduleFiles) {
+        await loadScript(baseUrl + mod);
+      }
+      startExtension();
+    })();
+  } else {
+    startExtension();
+  }
 })();

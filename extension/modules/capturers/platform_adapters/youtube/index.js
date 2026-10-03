@@ -16,7 +16,9 @@
   let lastYtFetchTime = 0;
 
   SC.isYouTubePage = function() {
-    return location.hostname.includes('youtube.com');
+    return location.hostname.includes('youtube.com') ||
+      Boolean(document.getElementById('movie_player')) ||
+      Boolean(document.querySelector('.html5-video-player'));
   };
 
   /**
@@ -404,4 +406,82 @@
 
     return list;
   };
+
+  const YouTubeCapturer = {
+    name: 'youtube',
+    capture: async function(options = {}) {
+      const tracks = [];
+      const ytTracks = SC.fetchYouTubeCaptionTracks ? SC.fetchYouTubeCaptionTracks() : (SC.ytCaptionTracks || []);
+      if (Array.isArray(ytTracks) && ytTracks.length > 0) {
+        ytTracks.forEach((ytTr, idx) => {
+          const trackId = `yt:${ytTr.languageCode || idx}`;
+          const trName = (ytTr.name && (ytTr.name.simpleText || (ytTr.name.runs && ytTr.name.runs[0] && ytTr.name.runs[0].text)))
+            || ytTr.languageCode || `Track ${idx + 1}`;
+          const rawCues = SC.ytTrackCues ? SC.ytTrackCues.get(trackId) || [] : [];
+          const cues = rawCues.map((c, cIdx) => ({
+            id: `yt_cue_${cIdx + 1}`,
+            startMs: Math.round(c.start * 1000),
+            endMs: Math.round(c.end * 1000),
+            text: (SC.cleanText ? SC.cleanText(c.text) : c.text).trim()
+          }));
+          tracks.push({
+            id: trackId,
+            language: ytTr.languageCode || 'en',
+            label: `[YouTube] ${trName}`,
+            kind: ytTr.kind || 'subtitles',
+            format: 'json',
+            source: 'network',
+            live: false,
+            completeness: cues.length > 0 ? 'full' : 'loaded-window',
+            cues: cues
+          });
+        });
+      }
+      return tracks;
+    },
+    parse: function(rawJson3OrXml, options = {}) {
+      let rawCues = [];
+      if (typeof rawJson3OrXml === 'string') {
+        const trimmed = rawJson3OrXml.trim();
+        if (trimmed.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            rawCues = SC.parseYouTubeJson3 ? SC.parseYouTubeJson3(parsed) : [];
+          } catch (_) {}
+        } else if (trimmed.startsWith('<')) {
+          rawCues = SC.parseYouTubeXml ? SC.parseYouTubeXml(trimmed) : [];
+        }
+      } else if (typeof rawJson3OrXml === 'object') {
+        rawCues = SC.parseYouTubeJson3 ? SC.parseYouTubeJson3(rawJson3OrXml) : [];
+      }
+
+      const cues = rawCues.map((c, idx) => ({
+        id: `yt_cue_${idx + 1}`,
+        startMs: Math.round(c.start * 1000),
+        endMs: Math.round(c.end * 1000),
+        text: (SC.cleanText ? SC.cleanText(c.text) : c.text).trim()
+      }));
+
+      return {
+        id: options.id || 'yt_track',
+        language: options.language || 'en',
+        label: options.label || 'YouTube Captions',
+        kind: 'captions',
+        format: 'json',
+        source: 'network',
+        live: false,
+        completeness: 'full',
+        cues: cues
+      };
+    }
+  };
+
+  SC.capturers = SC.capturers || {};
+  SC.capturers['youtube'] = YouTubeCapturer;
+  window.SubtitlesCapturers = window.SubtitlesCapturers || {};
+  window.SubtitlesCapturers['youtube'] = YouTubeCapturer;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = YouTubeCapturer;
+  }
 })();
+

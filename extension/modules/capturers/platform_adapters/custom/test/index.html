@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom Player Stand (Playerjs / JW Player)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f1115;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 30px 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+    .header p {
+      font-size: 14px;
+      color: #8c9ba5;
+    }
+    .player-wrapper {
+      width: 100%;
+      max-width: 860px;
+      background: #16181e;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+      border: 1px solid #282c35;
+    }
+    #playerjs, .playerjs-container {
+      position: relative;
+      width: 100%;
+      background: #000;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Тестовый стенд кастомного плеера (Playerjs)</h1>
+    <p>Эмуляция плеера со встроенной конфигурацией субтитров и реальным интерфейсом расширения</p>
+  </div>
+
+  <div class="player-wrapper">
+    <!-- Кастомный плеер Playerjs -->
+    <div id="playerjs" class="playerjs-container">
+      <video id="player-video" controls autoplay muted loop playsinline>
+        <source src="../../../../../../test/sample.mp4" type="video/mp4">
+        Ваш браузер не поддерживает элемент <code>video</code>.
+      </video>
+    </div>
+  </div>
+
+  <!-- Конфигурация кастомного плеера и поддержка file:// без внешних сетевых запросов -->
+  <script>
+    // Встроенные VTT данные для гарантированной работы при file:// протоколе и без внешних сетевых запросов
+    const vttRuContent = `WEBVTT - Тестовые субтитры (Русский)
+
+1
+00:00:00.500 --> 00:00:03.000
+Первая строка тестовых субтитров
+
+2
+00:00:03.500 --> 00:00:06.000
+Вторая строка: отслеживание работает
+
+3
+00:00:06.500 --> 00:00:09.500
+Третья строка: субтитры успешно захвачены
+`;
+
+    const vttEnContent = `WEBVTT - Test Subtitles (English)
+
+1
+00:00:00.500 --> 00:00:03.000
+First line of test subtitles
+
+2
+00:00:03.500 --> 00:00:06.000
+Second line: tracking is working
+
+3
+00:00:06.500 --> 00:00:09.500
+Third line: subtitles captured successfully
+`;
+
+    // Перехватчик fetch для локальной отдачи субтитров
+    const originalFetch = window.fetch;
+    window.fetch = async function(input, init) {
+      const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : String(input));
+      if (urlStr.includes('subtitles_ru.vtt')) {
+        return new Response(vttRuContent, {
+          status: 200,
+          headers: { 'Content-Type': 'text/vtt; charset=utf-8' }
+        });
+      }
+      if (urlStr.includes('subtitles_en.vtt')) {
+        return new Response(vttEnContent, {
+          status: 200,
+          headers: { 'Content-Type': 'text/vtt; charset=utf-8' }
+        });
+      }
+      return originalFetch ? originalFetch.apply(this, arguments) : Promise.reject(new Error('Fetch not available'));
+    };
+
+    // Класс Playerjs
+    function Playerjs(options) {
+      this.options = options || {};
+      this.api = function(action, param) {
+        const v = document.getElementById('player-video');
+        if (!v) return null;
+        if (action === 'play') return v.play();
+        if (action === 'pause') return v.pause();
+        if (action === 'time') return v.currentTime;
+        if (action === 'duration') return v.duration;
+        return null;
+      };
+    }
+
+    window.Playerjs = Playerjs;
+
+    // Конфигурация субтитров в скрипте и глобальный объект window.playerjs
+    window.playerjs = new Playerjs({
+      id: "playerjs",
+      file: "../../../../../../test/sample.mp4",
+      subtitle: "[Русский]subtitles_ru.vtt,[English]subtitles_en.vtt"
+    });
+
+    // Автоматическое открытие панели расширения для наглядного отображения интерфейса
+    window.addEventListener('load', function() {
+      const checkTimer = setInterval(function() {
+        if (window.__SC && window.__SC.openWidget && window.__SC.widgetEl) {
+          window.__SC.openWidget();
+          clearInterval(checkTimer);
+        }
+      }, 150);
+    });
+  </script>
+
+  <!-- Точка входа расширения (оркестратор и загрузчик модулей) -->
+  <script src="../../../../../content.js"></script>
+</body>
+</html>
