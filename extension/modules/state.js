@@ -59,8 +59,53 @@
     if (!cleaned || cleaned === 'auto' || /^\d+$/.test(cleaned)) return 'auto';
     if (cleaned === 'zh-cn' || cleaned === 'zh_cn') return 'zh-CN';
     if (cleaned === 'zh-tw' || cleaned === 'zh_tw') return 'zh-TW';
-    const match = cleaned.match(/^([a-z]{2,3})/);
-    return match ? match[1] : 'auto';
+
+    // Match keywords in track labels or descriptions
+    if (/рус|rus|russian/i.test(cleaned)) return 'ru';
+    if (/англ|eng|english/i.test(cleaned)) return 'en';
+    if (/исп|spa|esp|spanish/i.test(cleaned)) return 'es';
+    if (/нем|deu|ger|german/i.test(cleaned)) return 'de';
+    if (/фран|fra|fre|french/i.test(cleaned)) return 'fr';
+    if (/кит|chi|zho|chinese/i.test(cleaned)) return 'zh-CN';
+    if (/япон|jpn|jap|japanese/i.test(cleaned)) return 'ja';
+    if (/ита|ita|italian/i.test(cleaned)) return 'it';
+    if (/пор|por|portuguese/i.test(cleaned)) return 'pt';
+    if (/тур|tur|turkish/i.test(cleaned)) return 'tr';
+    if (/укр|ukr|ukrainian/i.test(cleaned)) return 'uk';
+    if (/араб|ara|arabic/i.test(cleaned)) return 'ar';
+    if (/поль|pol|polish/i.test(cleaned)) return 'pl';
+    if (/корей|kor|korean/i.test(cleaned)) return 'ko';
+
+    // Check if raw matches known ISO-639-1 2-letter codes or matches AVAILABLE_LANGUAGES
+    if (SC.AVAILABLE_LANGUAGES && SC.AVAILABLE_LANGUAGES.some(l => l.code.toLowerCase() === cleaned)) {
+      return cleaned;
+    }
+
+    // 3-letter codes map
+    const map3to2 = {
+      eng: 'en', rus: 'ru', spa: 'es', deu: 'de', ger: 'de', fra: 'fr', fre: 'fr',
+      ita: 'it', por: 'pt', zho: 'zh-CN', chi: 'zh-CN', jpn: 'ja', kor: 'ko',
+      tur: 'tr', ukr: 'uk', ara: 'ar', pol: 'pl', ces: 'cs', cze: 'cs',
+      nld: 'nl', dut: 'nl', swe: 'sv', ron: 'ro', rum: 'ro', ell: 'el',
+      gre: 'el', heb: 'he', hin: 'hi', ind: 'id', tha: 'th', vie: 'vi'
+    };
+    if (map3to2[cleaned]) return map3to2[cleaned];
+
+    if (/^[a-z]{2}$/.test(cleaned)) {
+      if (['cu', 'tr', 'yt'].includes(cleaned) && raw.includes(':')) return 'auto';
+      return cleaned;
+    }
+
+    // Check URL patterns like "/ru.vtt", "_en.srt", "subs/ru"
+    const urlMatch = cleaned.match(/[\/._-]([a-z]{2})(?:\.(?:vtt|srt)|\/|$)/);
+    if (urlMatch) {
+      const code = urlMatch[1];
+      if (['en', 'ru', 'es', 'de', 'fr', 'ja', 'it', 'pt', 'tr', 'uk', 'ar', 'zh'].includes(code)) {
+        return code;
+      }
+    }
+
+    return 'auto';
   };
 
   // Resolve language code from a track identifier (e.g. 'track:ru', 'yt:en', 'track:0', 'auto')
@@ -70,13 +115,14 @@
       if (trackItem) {
         const val = trackItem.trackId || trackItem.lang;
         if (val && val !== 'auto' && val !== trackId) {
-          return SC.resolveTrackLang(val);
+          const res = SC.resolveTrackLang(val);
+          if (res !== 'auto') return res;
         }
       }
       const video = SC.getActiveVideo();
       if (video && video.textTracks && video.textTracks.length > 0) {
         for (let i = 0; i < video.textTracks.length; i++) {
-          const lang = video.textTracks[i].language;
+          const lang = video.textTracks[i].language || video.textTracks[i].label;
           if (lang && lang.trim()) {
             const norm = SC.normalizeLangCode(lang);
             if (norm !== 'auto') return norm;
@@ -84,10 +130,19 @@
         }
       }
       if (SC.ytCaptionTracks && SC.ytCaptionTracks.length > 0) {
-        const ytLang = SC.ytCaptionTracks[0].languageCode;
+        const ytLang = SC.ytCaptionTracks[0].languageCode || SC.ytCaptionTracks[0].name?.simpleText;
         if (ytLang) {
           const norm = SC.normalizeLangCode(ytLang);
           if (norm !== 'auto') return norm;
+        }
+      }
+      const avail = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
+      if (avail.length > 0) {
+        for (const t of avail) {
+          if (t.value && t.value !== 'auto' && t.value !== trackId) {
+            const res = SC.resolveTrackLang(t.value);
+            if (res !== 'auto') return res;
+          }
         }
       }
       return 'auto';
@@ -95,6 +150,11 @@
 
     if (trackId.startsWith('yt:')) {
       const code = trackId.replace('yt:', '');
+      const foundYt = SC.ytCaptionTracks?.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
+      if (foundYt) {
+        const lang = SC.normalizeLangCode(foundYt.languageCode || foundYt.name?.simpleText || foundYt.name?.runs?.[0]?.text);
+        if (lang !== 'auto') return lang;
+      }
       return SC.normalizeLangCode(code);
     }
 
@@ -104,7 +164,8 @@
         const idx = parseInt(suffix, 10);
         const video = SC.getActiveVideo();
         if (video && video.textTracks && video.textTracks[idx]) {
-          const trLang = video.textTracks[idx].language;
+          const tr = video.textTracks[idx];
+          const trLang = tr.language || tr.label;
           if (trLang && trLang.trim()) {
             return SC.normalizeLangCode(trLang);
           }
@@ -112,6 +173,30 @@
         return 'auto';
       }
       return SC.normalizeLangCode(suffix);
+    }
+
+    if (trackId.startsWith('custom:')) {
+      const cTr = SC.customCaptionTracks?.find(t => t.id === trackId);
+      if (cTr) {
+        const fromLabel = SC.normalizeLangCode(cTr.label);
+        if (fromLabel !== 'auto') return fromLabel;
+        const fromUrl = SC.normalizeLangCode(cTr.url);
+        if (fromUrl !== 'auto') return fromUrl;
+      }
+      const avail = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
+      const found = avail.find(t => t.value === trackId);
+      if (found && found.label) {
+        const fromLabel = SC.normalizeLangCode(found.label);
+        if (fromLabel !== 'auto') return fromLabel;
+      }
+      return 'auto';
+    }
+
+    const avail = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
+    const found = avail.find(t => t.value === trackId);
+    if (found && found.label) {
+      const fromLabel = SC.normalizeLangCode(found.label);
+      if (fromLabel !== 'auto') return fromLabel;
     }
 
     return SC.normalizeLangCode(trackId);

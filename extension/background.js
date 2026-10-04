@@ -8,6 +8,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TRANSLATE_TEXT') {
     const { text, targetLang, sourceLang = 'auto', engine = 'google' } = message;
 
+    const fetchGoogle = (clientName = 'dict-chrome-ex') => {
+      const gUrl = `https://translate.googleapis.com/translate_a/single?client=${encodeURIComponent(clientName)}&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
+      return fetch(gUrl)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          let translated = '';
+          if (data && Array.isArray(data[0])) {
+            translated = data[0].map(chunk => (chunk && chunk[0]) ? chunk[0] : '').join('').trim();
+          }
+          if (translated) {
+            sendResponse({ success: true, translated });
+            return true;
+          }
+          return false;
+        });
+    };
+
     if (engine === 'yandex') {
       const langParam = (sourceLang && sourceLang !== 'auto') ? `${sourceLang}-${targetLang}` : targetLang;
       const url = `https://translate.yandex.net/api/v1/tr.json/translate?srv=android&lang=${encodeURIComponent(langParam)}&text=${encodeURIComponent(text)}`;
@@ -21,38 +41,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (data && Array.isArray(data.text)) {
             translated = data.text.join(' ').trim();
           }
-          if (translated && (translated !== text || sourceLang === targetLang)) {
+          if (translated) {
             sendResponse({ success: true, translated });
           } else {
-            sendResponse({ success: false, error: 'Empty or untranslated response', translated: null });
+            fetchGoogle('dict-chrome-ex')
+              .catch(() => fetchGoogle('gtx'))
+              .catch(err => sendResponse({ success: false, error: err.message, translated: null }));
           }
         })
-        .catch(err => {
-          sendResponse({ success: false, error: err.message, translated: null });
+        .catch(() => {
+          fetchGoogle('dict-chrome-ex')
+            .catch(() => fetchGoogle('gtx'))
+            .catch(err => sendResponse({ success: false, error: err.message, translated: null }));
         });
       return true;
     }
 
-    // Default: Google Translate (client=gtx)
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
-    fetch(url)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        let translated = '';
-        if (data && Array.isArray(data[0])) {
-          translated = data[0].map(chunk => (chunk && chunk[0]) ? chunk[0] : '').join('').trim();
-        }
-        if (translated && (translated !== text || sourceLang === targetLang)) {
-          sendResponse({ success: true, translated });
-        } else {
-          sendResponse({ success: false, error: 'Empty or untranslated response', translated: null });
+    // Default: Google Translate (dict-chrome-ex with fallback to gtx)
+    fetchGoogle('dict-chrome-ex')
+      .then(ok => {
+        if (!ok) {
+          fetchGoogle('gtx').catch(err => sendResponse({ success: false, error: err.message, translated: null }));
         }
       })
-      .catch(err => {
-        sendResponse({ success: false, error: err.message, translated: null });
+      .catch(() => {
+        fetchGoogle('gtx').catch(err => sendResponse({ success: false, error: err.message, translated: null }));
       });
     return true; // Keep message channel open for async response
   }

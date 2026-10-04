@@ -71,48 +71,87 @@
 
     const promise = new Promise((resolve) => {
       const doDirectFetch = () => {
-        let url;
+        const fetchGoogle = (clientName = 'dict-chrome-ex') => {
+          const gUrl = `https://translate.googleapis.com/translate_a/single?client=${encodeURIComponent(clientName)}&sl=${encodeURIComponent(normSourceLang)}&tl=${encodeURIComponent(normTargetLang)}&dt=t&q=${encodeURIComponent(cleanSourceText)}`;
+          return fetch(gUrl)
+            .then(r => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            })
+            .then(d => {
+              let res = '';
+              if (d && Array.isArray(d[0])) {
+                res = d[0].map(c => (c && c[0]) ? c[0] : '').join('').trim();
+              }
+              if (res) {
+                SC.state.translationCache.set(cacheKey, res);
+                resolve(res);
+                return true;
+              }
+              return false;
+            });
+        };
+
         if (currentEngine === 'yandex') {
           const langParam = (normSourceLang && normSourceLang !== 'auto') ? `${normSourceLang}-${normTargetLang}` : normTargetLang;
-          url = `https://translate.yandex.net/api/v1/tr.json/translate?srv=android&lang=${encodeURIComponent(langParam)}&text=${encodeURIComponent(cleanSourceText)}`;
-        } else {
-          url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(normSourceLang)}&tl=${encodeURIComponent(normTargetLang)}&dt=t&q=${encodeURIComponent(cleanSourceText)}`;
-        }
-
-        fetch(url)
-          .then(r => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            return r.json();
-          })
-          .then(d => {
-            let res = '';
-            if (currentEngine === 'yandex') {
+          const yUrl = `https://translate.yandex.net/api/v1/tr.json/translate?srv=android&lang=${encodeURIComponent(langParam)}&text=${encodeURIComponent(cleanSourceText)}`;
+          fetch(yUrl)
+            .then(r => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            })
+            .then(d => {
+              let res = '';
               if (d && Array.isArray(d.text)) {
                 res = d.text.join(' ').trim();
               }
-            } else if (d && Array.isArray(d[0])) {
-              res = d[0].map(c => (c && c[0]) ? c[0] : '').join('').trim();
-            }
-            if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
-              SC.state.translationCache.set(cacheKey, res);
-              resolve(res);
-            } else {
-              resolve(null);
-            }
+              if (res) {
+                SC.state.translationCache.set(cacheKey, res);
+                resolve(res);
+              } else {
+                fetchGoogle('dict-chrome-ex').catch(() => fetchGoogle('gtx')).catch(() => resolve(null));
+              }
+            })
+            .catch(() => {
+              fetchGoogle('dict-chrome-ex').catch(() => fetchGoogle('gtx')).catch(() => resolve(null));
+            });
+          return;
+        }
+
+        // Google Translate: use dict-chrome-ex (CORS enabled & rate-limit safe), fallback to gtx
+        fetchGoogle('dict-chrome-ex')
+          .then(ok => {
+            if (!ok) return fetchGoogle('gtx');
+          })
+          .catch(() => {
+            return fetchGoogle('gtx');
           })
           .catch(() => resolve(null));
       };
 
-      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      const hasExtensionRuntime = typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id) && typeof chrome.runtime?.sendMessage === 'function';
+
+      if (hasExtensionRuntime) {
+        let responded = false;
+        const timer = setTimeout(() => {
+          if (!responded) {
+            responded = true;
+            doDirectFetch();
+          }
+        }, 3500);
+
         try {
           chrome.runtime.sendMessage(
             { type: 'TRANSLATE_TEXT', text: cleanSourceText, targetLang: normTargetLang, sourceLang: normSourceLang, engine: currentEngine },
             (response) => {
+              if (responded) return;
+              responded = true;
+              clearTimeout(timer);
               if (chrome.runtime.lastError || !response || !response.success || !response.translated) {
                 doDirectFetch();
               } else {
                 const res = String(response.translated).trim();
-                if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
+                if (res) {
                   SC.state.translationCache.set(cacheKey, res);
                   resolve(res);
                 } else {
@@ -122,7 +161,11 @@
             }
           );
         } catch (_) {
-          doDirectFetch();
+          if (!responded) {
+            responded = true;
+            clearTimeout(timer);
+            doDirectFetch();
+          }
         }
       } else {
         doDirectFetch();
