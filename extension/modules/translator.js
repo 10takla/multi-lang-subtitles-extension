@@ -144,8 +144,8 @@
     return (firstTrack && (firstTrack.trackId || firstTrack.lang)) || 'auto';
   };
 
-  // Prefetch translations for upcoming subtitle cues ahead of time (using configured bufferSec, default 30s)
-  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferSeconds = null) {
+  // Prefetch translations for upcoming subtitle cues ahead of time (packing whole cues up to engine maxChars)
+  SC.prefetchUpcomingTranslations = function(currentTime = null, bufferChars = null) {
     if (!SC.getUpcomingCues) return;
 
     const translationItems = SC.state.languages.filter(l => (l.mode === 'trans' || l.type === 'translation') && l.mode !== 'track');
@@ -171,36 +171,54 @@
         return;
       }
 
-      const effectiveBuffer = (item.bufferSec !== undefined && item.bufferSec !== null)
-        ? Math.max(1, Number(item.bufferSec))
-        : (bufferSeconds || 30);
+      const engine = item.engine || 'google';
+      const engineMax = SC.getEngineMaxChars
+        ? SC.getEngineMaxChars(engine)
+        : (engine === 'yandex' ? 10000 : (engine === 'chrome' ? 4000 : 1800));
 
-      const upcomingCues = SC.getUpcomingCues(t, effectiveBuffer, sourceTrack);
+      const configuredLimit = (bufferChars !== null && bufferChars !== undefined)
+        ? Number(bufferChars)
+        : ((item.bufferChars !== undefined && item.bufferChars !== null) ? Number(item.bufferChars) : Math.min(1000, engineMax));
+
+      // Strictly bounded by engine maximum
+      const maxChars = Math.max(1, Math.min(configuredLimit, engineMax));
+
+      // Lookahead candidates (up to 30 minutes from current playback time)
+      const upcomingCues = SC.getUpcomingCues(t, 1800, sourceTrack);
       if (!upcomingCues || upcomingCues.length === 0) return;
 
       const normSourceLang = SC.normalizeLangCode ? SC.normalizeLangCode(sourceLang) : sourceLang;
       const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
-      const engine = item.engine || 'google';
 
-      // Filter cues that need fetching and sort by start time ascending
-      const needed = [];
-      for (let i = 0; i < upcomingCues.length; i++) {
-        const cue = upcomingCues[i];
+      // Sort candidate cues by start time ascending
+      const sortedCues = [...upcomingCues].sort((a, b) => a.start - b.start);
+
+      // Pack whole cues into buffer up to maxChars
+      const batch = [];
+      let totalChars = 0;
+
+      for (let i = 0; i < sortedCues.length; i++) {
+        const cue = sortedCues[i];
         const sourceText = SC.cleanText(cue.text);
         if (!sourceText) continue;
+
+        const textLen = sourceText.length;
+        // Stop if adding the next whole cue would exceed character limit
+        if (totalChars + textLen > maxChars && batch.length > 0) {
+          break;
+        }
+
         const cacheKey = `${engine}_${normSourceLang}_${normTargetLang}_${sourceText}`;
         if (!SC.state.translationCache.has(cacheKey) && !inFlightRequests.has(cacheKey)) {
-          needed.push({ cue, text: sourceText, key: cacheKey });
+          batch.push({ cue, text: sourceText, key: cacheKey });
         }
+        totalChars += textLen;
+        if (totalChars >= maxChars) break;
       }
 
-      if (needed.length === 0) return;
+      if (batch.length === 0) return;
 
-      // Sort so the immediate upcoming cues are fetched first
-      needed.sort((a, b) => a.cue.start - b.cue.start);
-
-      // Fetch up to 30 nearest upcoming cues (covering full buffer)
-      const batch = needed.slice(0, 30);
+      // Dispatch translation for the packed batch
       for (let i = 0; i < batch.length; i++) {
         SC.fetchTranslation(batch[i].text, normTargetLang, normSourceLang, engine);
       }

@@ -21,7 +21,7 @@
 
 .sc-widget {
   position: fixed;
-  width: 510px;
+  width: 560px;
   max-width: calc(100vw - 48px);
   height: auto;
   max-height: calc(100vh - 48px);
@@ -488,7 +488,7 @@
 }
 
 .sc-target-lang-select {
-  max-width: 85px;
+  max-width: 95px;
   flex: 1;
   min-width: 60px;
 }
@@ -527,23 +527,27 @@
 }
 
 .sc-buffer-input {
-  width: 32px;
+  width: 46px;
   height: 18px;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #f1f5f9;
-  font-size: 11px;
-  font-weight: 600;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: #f1f5f9 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
   text-align: center;
-  padding: 0;
-  -moz-appearance: textfield;
+  padding: 0 2px !important;
+  margin: 0 !important;
+  appearance: textfield !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: textfield !important;
 }
 
 .sc-buffer-input::-webkit-outer-spin-button,
 .sc-buffer-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+  -webkit-appearance: none !important;
+  display: none !important;
+  margin: 0 !important;
 }
 
 .sc-buffer-unit {
@@ -568,8 +572,9 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
+  margin-left: 6px;
   flex-shrink: 0;
+  z-index: 2;
 }
 
 .sc-btn-mini {

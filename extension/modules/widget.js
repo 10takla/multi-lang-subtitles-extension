@@ -813,21 +813,21 @@
           if (SC.retranslateItem) SC.retranslateItem(item);
           if (SC.prefetchUpcomingTranslations) {
             const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferSec || 30);
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
           SC.renderAllLines();
         });
         controls.appendChild(targetSelect);
 
-        // Translation engine select (ai_instrs/_.md:21-24)
+        // Translation engine select (ai_instrs/_.md:21-25)
         item.engine = item.engine || 'google';
         const engineSelect = document.createElement('select');
         engineSelect.className = 'sc-lang-select sc-engine-select';
         engineSelect.title = 'Выбор движка перевода (по умолчанию: Google Translate)';
         const engines = SC.TRANSLATION_ENGINES || [
-          { id: 'google', name: 'Google' },
-          { id: 'yandex', name: 'Yandex' },
-          { id: 'chrome', name: 'Chrome AI' }
+          { id: 'google', name: 'Google', maxChars: 1800 },
+          { id: 'yandex', name: 'Yandex', maxChars: 10000 },
+          { id: 'chrome', name: 'Chrome AI', maxChars: 4000 }
         ];
         engines.forEach(eng => {
           const opt = document.createElement('option');
@@ -836,39 +836,64 @@
           if (item.engine === eng.id) opt.selected = true;
           engineSelect.appendChild(opt);
         });
+
+        // Buffer input in characters (ai_instrs/_.md:25)
+        const getEngineMax = (eng) => (SC.getEngineMaxChars ? SC.getEngineMaxChars(eng) : (eng === 'yandex' ? 10000 : (eng === 'chrome' ? 4000 : 1800)));
+        const engineMax = getEngineMax(item.engine);
+        const defaultChars = SC.getDefaultBufferChars ? SC.getDefaultBufferChars(item.engine) : Math.min(1000, engineMax);
+        if (item.bufferChars === undefined || item.bufferChars === null) {
+          item.bufferChars = defaultChars;
+        } else {
+          item.bufferChars = Math.max(1, Math.min(Number(item.bufferChars), engineMax));
+        }
+
+        const bufferWrap = document.createElement('div');
+        bufferWrap.className = 'sc-buffer-wrap';
+        bufferWrap.title = `Буфер упреждения перевода (в символах, макс. ${engineMax})`;
+        bufferWrap.innerHTML = `
+          <span class="sc-buffer-label">Буфер:</span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" class="sc-buffer-input" value="${item.bufferChars}" title="Буфер упреждения перевода в символах (макс. ${engineMax})">
+          <span class="sc-buffer-unit">симв</span>
+        `;
+        const bufferInput = bufferWrap.querySelector('.sc-buffer-input');
+
         engineSelect.addEventListener('change', (e) => {
           item.engine = e.target.value;
+          const currentMax = getEngineMax(item.engine);
+          if (item.bufferChars > currentMax) {
+            item.bufferChars = currentMax;
+          }
+          if (bufferInput) {
+            bufferInput.value = item.bufferChars;
+            bufferInput.title = `Буфер упреждения перевода в символах (макс. ${currentMax})`;
+          }
           if (SC.retranslateItem) SC.retranslateItem(item);
           if (SC.prefetchUpcomingTranslations) {
             const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferSec || 30);
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
           SC.renderAllLines();
         });
         controls.appendChild(engineSelect);
 
-        // Buffer input (seconds, default 30s) (ai_instrs/_.md:25)
-        item.bufferSec = (item.bufferSec !== undefined && item.bufferSec !== null) ? Number(item.bufferSec) : 30;
-        const bufferWrap = document.createElement('div');
-        bufferWrap.className = 'sc-buffer-wrap';
-        bufferWrap.title = 'Буфер упреждения перевода (по умолчанию 30 секунд)';
-        bufferWrap.innerHTML = `
-          <span class="sc-buffer-label">Буфер:</span>
-          <input type="number" class="sc-buffer-input" min="5" max="300" step="5" value="${item.bufferSec}" title="Буфер упреждения перевода в секундах">
-          <span class="sc-buffer-unit">с</span>
-        `;
-        const bufferInput = bufferWrap.querySelector('.sc-buffer-input');
-        const onBufferChange = () => {
-          const val = parseInt(bufferInput.value, 10);
-          item.bufferSec = isNaN(val) ? 30 : Math.max(1, Math.min(600, val));
-          bufferInput.value = item.bufferSec;
-          if (SC.prefetchUpcomingTranslations) {
-            const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferSec);
+        const onBufferChange = (e) => {
+          if (e.type === 'input') {
+            bufferInput.value = bufferInput.value.replace(/\D/g, '');
+          }
+          if (e.type === 'change' || e.type === 'blur') {
+            const val = parseInt(bufferInput.value, 10);
+            const currentMax = getEngineMax(item.engine);
+            item.bufferChars = isNaN(val) ? Math.min(1000, currentMax) : Math.max(1, Math.min(currentMax, val));
+            bufferInput.value = item.bufferChars;
+            if (SC.prefetchUpcomingTranslations) {
+              const v = SC.getActiveVideo();
+              SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
+            }
           }
         };
-        bufferInput.addEventListener('change', onBufferChange);
         bufferInput.addEventListener('input', onBufferChange);
+        bufferInput.addEventListener('change', onBufferChange);
+        bufferInput.addEventListener('blur', onBufferChange);
         controls.appendChild(bufferWrap);
       }
 
@@ -1005,6 +1030,7 @@
           sourceFrom: availTracks.length > 0 ? availTracks[0].value : '',
           targetLang: nextLangCode,
           engine: 'google',
+          bufferChars: SC.getDefaultBufferChars ? SC.getDefaultBufferChars('google') : 1000,
           bufferSec: 30,
           lang: nextLangCode,
           visible: true
@@ -1014,7 +1040,7 @@
         if (SC.retranslateItem) SC.retranslateItem(newSelector);
         if (SC.prefetchUpcomingTranslations) {
           const v = SC.getActiveVideo();
-          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, newSelector.bufferSec || 30);
+          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, newSelector.bufferChars);
         }
         SC.renderAllLines();
       });

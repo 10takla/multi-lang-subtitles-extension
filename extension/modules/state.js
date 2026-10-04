@@ -28,10 +28,24 @@
 
   // Available translation engines (ai_instrs/_.md:21-25)
   SC.TRANSLATION_ENGINES = [
-    { id: 'google', name: 'Google' },
-    { id: 'yandex', name: 'Yandex' },
-    { id: 'chrome', name: 'Chrome AI' }
+    { id: 'google', name: 'Google', maxChars: 1800 },
+    { id: 'yandex', name: 'Yandex', maxChars: 10000 },
+    { id: 'chrome', name: 'Chrome AI', maxChars: 4000 }
   ];
+
+  SC.ENGINE_MAX_CHARS = {
+    google: 1800,
+    yandex: 10000,
+    chrome: 4000
+  };
+
+  SC.getEngineMaxChars = function(engine = 'google') {
+    return SC.ENGINE_MAX_CHARS[engine] || 1800;
+  };
+
+  SC.getDefaultBufferChars = function(engine = 'google') {
+    return Math.min(1000, SC.getEngineMaxChars(engine));
+  };
 
   SC.getLangName = function(code) {
     const found = SC.AVAILABLE_LANGUAGES.find(l => l.code === code);
@@ -144,6 +158,7 @@
         sourceTrack: '',
         targetLang: 'en',
         engine: 'google',
+        bufferChars: 1000,
         bufferSec: 30,
         lang: '',
         type: 'source',
