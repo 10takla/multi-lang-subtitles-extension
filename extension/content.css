@@ -303,10 +303,18 @@
   cursor: pointer !important;
   z-index: 2147483645 !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease !important;
+  opacity: 1;
+  transition: opacity 0.25s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease !important;
   padding: 0 !important;
   outline: none !important;
   user-select: none !important;
+  pointer-events: auto !important;
+}
+
+.sc-video-badge-btn.sc-autohide {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 1s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease !important;
 }
 
 .sc-video-badge-btn:hover {

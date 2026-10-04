@@ -47,16 +47,170 @@
   };
 
   // Update visual state (active class and title) for all on-video launcher icons
-  SC.updateVideoIconsState = function() {
-    if (!SC.videoIcons || SC.videoIcons.size === 0) return;
-    for (const [video, btn] of SC.videoIcons.entries()) {
-      const isActive = Boolean(SC.state.widgetVisible && SC.state.activeVideo === video);
-      btn.classList.toggle('sc-active', isActive);
-      btn.title = isActive ? 'Скрыть панель управления' : 'Открыть панель управления';
+  SC.videoIconData = SC.videoIconData || new Map();
+  SC.lastMousePos = SC.lastMousePos || { x: -1, y: -1 };
+  let autohideGlobalListenersSetup = false;
+
+  // Check whether an icon must remain visible (on pause or when control panel is open, ai_instrs/_.md:43)
+  SC.isIconForcedVisible = function(video) {
+    if (!video) return false;
+    if (video.paused || video.ended) return true;
+    if (SC.state.widgetVisible) return true;
+    return false;
+  };
+
+  // Smoothly show icon (ai_instrs/_.md:43)
+  SC.showVideoIcon = function(video, btn) {
+    const data = SC.videoIconData?.get(video);
+    if (data?.inactivityTimer) {
+      clearTimeout(data.inactivityTimer);
+      data.inactivityTimer = null;
+    }
+    btn.classList.remove('sc-autohide');
+  };
+
+  // Smoothly hide icon with 1s fade-out (ai_instrs/_.md:43)
+  SC.hideVideoIcon = function(video, btn) {
+    const data = SC.videoIconData?.get(video);
+    if (data?.inactivityTimer) {
+      clearTimeout(data.inactivityTimer);
+      data.inactivityTimer = null;
+    }
+    if (SC.isIconForcedVisible(video)) {
+      btn.classList.remove('sc-autohide');
+      return;
+    }
+    btn.classList.add('sc-autohide');
+  };
+
+  // Schedule smooth fade-out after 2-3 seconds of cursor inactivity over video (ai_instrs/_.md:43)
+  SC.scheduleInactivityHide = function(video, btn) {
+    const data = SC.videoIconData?.get(video);
+    if (!data) return;
+    if (data.inactivityTimer) {
+      clearTimeout(data.inactivityTimer);
+      data.inactivityTimer = null;
+    }
+    if (SC.isIconForcedVisible(video)) {
+      btn.classList.remove('sc-autohide');
+      return;
+    }
+    SC.showVideoIcon(video, btn);
+    data.inactivityTimer = setTimeout(() => {
+      data.inactivityTimer = null;
+      if (!SC.isIconForcedVisible(video)) {
+        btn.classList.add('sc-autohide');
+      }
+    }, 2500); // 2.5s (2–3 секунды неактивности курсора над видео)
+  };
+
+  // Test whether client coordinates are inside video detect window or over the icon button
+  SC.isCursorInsideVideo = function(video, btn, clientX, clientY) {
+    if (typeof clientX !== 'number' || typeof clientY !== 'number' || clientX < 0 || clientY < 0) {
+      return false;
+    }
+    if (btn) {
+      const bRect = btn.getBoundingClientRect();
+      if (clientX >= bRect.left && clientX <= bRect.right && clientY >= bRect.top && clientY <= bRect.bottom) {
+        return true;
+      }
+    }
+    const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
+    if (vRect) {
+      if (clientX >= vRect.left && clientX <= vRect.right && clientY >= vRect.top && clientY <= vRect.bottom) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Global mouse listeners to handle hover, inactivity, and exit across video boundaries
+  SC.setupVideoAutohideGlobalListeners = function() {
+    if (autohideGlobalListenersSetup) return;
+    autohideGlobalListenersSetup = true;
+
+    const onPointerMove = (e) => {
+      SC.lastMousePos.x = e.clientX;
+      SC.lastMousePos.y = e.clientY;
+
+      if (!SC.videoIcons || SC.videoIcons.size === 0) return;
+      for (const [video, btn] of SC.videoIcons.entries()) {
+        const data = SC.videoIconData?.get(video);
+        if (!data) continue;
+
+        const isInside = SC.isCursorInsideVideo(video, btn, e.clientX, e.clientY);
+        if (isInside) {
+          data.isHovered = true;
+          // "при движении мыши над видео плавно появляется"
+          SC.showVideoIcon(video, btn);
+          if (!SC.isIconForcedVisible(video)) {
+            // "при воспроизведении иконка плавно скрывается через 2–3 секунды неактивности курсора над видео"
+            SC.scheduleInactivityHide(video, btn);
+          }
+        } else if (data.isHovered) {
+          data.isHovered = false;
+          // "при выходе за границы видео плавно скрывается за 1 секунду"
+          if (!SC.isIconForcedVisible(video)) {
+            SC.hideVideoIcon(video, btn);
+          }
+        }
+      }
+    };
+
+    const onPointerLeave = (e) => {
+      if (!e.relatedTarget && !e.toElement) {
+        SC.lastMousePos.x = -1;
+        SC.lastMousePos.y = -1;
+        if (!SC.videoIcons || SC.videoIcons.size === 0) return;
+        for (const [video, btn] of SC.videoIcons.entries()) {
+          const data = SC.videoIconData?.get(video);
+          if (data) data.isHovered = false;
+          if (!SC.isIconForcedVisible(video)) {
+            SC.hideVideoIcon(video, btn);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', onPointerMove, { passive: true });
+    window.addEventListener('mouseleave', onPointerLeave, { passive: true });
+    document.addEventListener('mouseleave', onPointerLeave, { passive: true });
+
+    if (SC.getAccessibleDocuments) {
+      SC.getAccessibleDocuments().forEach(doc => {
+        try {
+          doc.addEventListener('mousemove', onPointerMove, { passive: true });
+          doc.addEventListener('mouseleave', onPointerLeave, { passive: true });
+        } catch (_) {}
+      });
     }
   };
 
-  // Register video as having detected subtitles and create on-video launcher icon
+  // Update visual state (active class and title) and autohide visibility for all on-video launcher icons
+  SC.updateVideoIconsState = function() {
+    if (!SC.videoIcons || SC.videoIcons.size === 0) return;
+    for (const [video, btn] of SC.videoIcons.entries()) {
+      const isActive = Boolean(SC.state.widgetVisible && (SC.state.activeVideo === video || !SC.state.activeVideo));
+      btn.classList.toggle('sc-active', isActive);
+      btn.title = isActive ? 'Скрыть панель управления' : 'Открыть панель управления';
+
+      // Update autohide visibility: stays visible on pause or when control panel is open (ai_instrs/_.md:43)
+      if (SC.isIconForcedVisible(video)) {
+        SC.showVideoIcon(video, btn);
+      } else {
+        const isInside = SC.isCursorInsideVideo(video, btn, SC.lastMousePos.x, SC.lastMousePos.y);
+        const data = SC.videoIconData?.get(video);
+        if (data) data.isHovered = isInside;
+        if (isInside) {
+          SC.scheduleInactivityHide(video, btn);
+        } else {
+          SC.hideVideoIcon(video, btn);
+        }
+      }
+    }
+  };
+
+  // Register video as having detected subtitles and create on-video launcher icon with autohide logic
   SC.registerVideoWithSubtitles = function(video) {
     if (!video || !SC.shadowRoot) return;
     if (SC.videoIcons.has(video)) return;
@@ -83,6 +237,85 @@
 
     SC.shadowRoot.appendChild(iconBtn);
     SC.videoIcons.set(video, iconBtn);
+
+    // Setup autohide listeners (ai_instrs/_.md:43)
+    SC.setupVideoAutohideGlobalListeners();
+
+    const onPlayStateChange = () => {
+      if (SC.isIconForcedVisible(video)) {
+        SC.showVideoIcon(video, iconBtn);
+      } else {
+        const isInside = SC.isCursorInsideVideo(video, iconBtn, SC.lastMousePos.x, SC.lastMousePos.y);
+        const data = SC.videoIconData?.get(video);
+        if (data) data.isHovered = isInside;
+        if (isInside) {
+          SC.scheduleInactivityHide(video, iconBtn);
+        } else {
+          SC.hideVideoIcon(video, iconBtn);
+        }
+      }
+    };
+
+    video.addEventListener('play', onPlayStateChange);
+    video.addEventListener('playing', onPlayStateChange);
+    video.addEventListener('pause', onPlayStateChange);
+    video.addEventListener('ended', onPlayStateChange);
+
+    const onDirectMouseMove = () => {
+      const data = SC.videoIconData?.get(video);
+      if (data) data.isHovered = true;
+      SC.showVideoIcon(video, iconBtn);
+      if (!SC.isIconForcedVisible(video)) {
+        SC.scheduleInactivityHide(video, iconBtn);
+      }
+    };
+
+    const onDirectMouseLeave = (e) => {
+      const data = SC.videoIconData?.get(video);
+      if (e && typeof e.clientX === 'number') {
+        if (SC.isCursorInsideVideo(video, iconBtn, e.clientX, e.clientY)) {
+          return;
+        }
+      }
+      if (data) data.isHovered = false;
+      if (!SC.isIconForcedVisible(video)) {
+        SC.hideVideoIcon(video, iconBtn);
+      }
+    };
+
+    video.addEventListener('mousemove', onDirectMouseMove, { passive: true });
+    video.addEventListener('mouseenter', onDirectMouseMove, { passive: true });
+    video.addEventListener('mouseleave', onDirectMouseLeave, { passive: true });
+
+    iconBtn.addEventListener('mousemove', onDirectMouseMove, { passive: true });
+    iconBtn.addEventListener('mouseenter', onDirectMouseMove, { passive: true });
+    iconBtn.addEventListener('mouseleave', onDirectMouseLeave, { passive: true });
+
+    const iconData = {
+      video,
+      btn: iconBtn,
+      inactivityTimer: null,
+      isHovered: false,
+      cleanup: () => {
+        if (iconData.inactivityTimer) {
+          clearTimeout(iconData.inactivityTimer);
+          iconData.inactivityTimer = null;
+        }
+        video.removeEventListener('play', onPlayStateChange);
+        video.removeEventListener('playing', onPlayStateChange);
+        video.removeEventListener('pause', onPlayStateChange);
+        video.removeEventListener('ended', onPlayStateChange);
+        video.removeEventListener('mousemove', onDirectMouseMove);
+        video.removeEventListener('mouseenter', onDirectMouseMove);
+        video.removeEventListener('mouseleave', onDirectMouseLeave);
+        iconBtn.removeEventListener('mousemove', onDirectMouseMove);
+        iconBtn.removeEventListener('mouseenter', onDirectMouseMove);
+        iconBtn.removeEventListener('mouseleave', onDirectMouseLeave);
+      }
+    };
+
+    SC.videoIconData.set(video, iconData);
+
     SC.updateVideoIconsPosition();
     SC.updateVideoIconsState();
   };
@@ -93,6 +326,11 @@
     for (const [video, btn] of SC.videoIcons.entries()) {
       const doc = video.ownerDocument || document;
       if (!doc.contains(video)) {
+        const data = SC.videoIconData?.get(video);
+        if (data) {
+          data.cleanup();
+          SC.videoIconData.delete(video);
+        }
         btn.remove();
         SC.videoIcons.delete(video);
         continue;
@@ -254,6 +492,13 @@
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
         padding: 0 !important;
         pointer-events: auto !important;
+        opacity: 1;
+        transition: opacity 0.25s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease !important;
+      }
+      .sc-video-badge-btn.sc-autohide {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 1s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease !important;
       }
       .sc-video-badge-btn svg { width: 18px !important; height: 18px !important; fill: currentColor !important; pointer-events: none !important; }
       .sc-video-badge-btn:hover { background: rgba(24, 119, 242, 0.95) !important; }
