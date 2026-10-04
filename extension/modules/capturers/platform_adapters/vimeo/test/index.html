@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vimeo Capturer Test Stand — Subtitles</title>
+  <style>
+    :root {
+      --bg-color: #0b0e14;
+      --card-bg: #151921;
+      --card-border: #272f3d;
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --accent-vimeo: #00adef;
+      --accent-vimeo-hover: #1ab7ea;
+      --accent-green: #3fb950;
+      --accent-red: #f85149;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .main-container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-badge {
+      background: var(--accent-vimeo);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .header-title h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .header-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Vimeo Player Card */
+    .player-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .player-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    video.vimeo-video-element {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Vimeo Subtitles On-screen Renderer */
+    .vimeo-subtitles-overlay {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 56px;
+      pointer-events: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 24px;
+      z-index: 20;
+    }
+
+    .vimeo-caption-cue {
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      font-size: 16px;
+      line-height: 1.4;
+      padding: 6px 14px;
+      border-radius: 4px;
+      text-align: center;
+      max-width: 80%;
+      transition: opacity 0.2s ease;
+      backdrop-filter: blur(2px);
+    }
+
+    .vimeo-caption-cue:empty {
+      display: none;
+    }
+
+    /* Vimeo Controls Bar */
+    .vimeo-controls-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 30;
+      user-select: none;
+    }
+
+    .controls-left, .controls-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .vimeo-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      border-radius: 4px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .vimeo-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--accent-vimeo);
+    }
+
+    .vimeo-btn.active {
+      color: var(--accent-vimeo);
+    }
+
+    .vimeo-time {
+      font-size: 13px;
+      color: #ddd;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Diagnostics & Test Status Card */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .card-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent-vimeo);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .test-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .test-badge.passed {
+      background: rgba(63, 185, 80, 0.2);
+      color: var(--accent-green);
+      border: 1px solid var(--accent-green);
+    }
+
+    .test-badge.failed {
+      background: rgba(248, 81, 73, 0.2);
+      color: var(--accent-red);
+      border: 1px solid var(--accent-red);
+    }
+
+    .test-badge.running {
+      background: rgba(0, 173, 239, 0.2);
+      color: var(--accent-vimeo);
+      border: 1px solid var(--accent-vimeo);
+    }
+
+    /* Status Grid */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .status-item {
+      background: #1c222c;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .status-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .status-value {
+      font-size: 13px;
+      font-family: monospace;
+      color: #fff;
+      word-break: break-all;
+    }
+
+    /* Test List Table */
+    .test-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+
+    .test-table th, .test-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .test-table th {
+      background: #1c222c;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .status-tag {
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    .status-tag.passed {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
+    .status-tag.failed {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--accent-red);
+    }
+
+    /* Actions & Controls */
+    .actions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .action-btn {
+      background: var(--accent-vimeo);
+      color: #fff;
+      font-weight: 600;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .action-btn:hover {
+      background: var(--accent-vimeo-hover);
+    }
+
+    .action-btn.secondary {
+      background: #272f3d;
+      color: var(--text-main);
+    }
+
+    .action-btn.secondary:hover {
+      background: #374256;
+    }
+
+    select {
+      background: #1c222c;
+      color: #fff;
+      border: 1px solid var(--card-border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* JSON preview */
+    details {
+      margin-top: 16px;
+      background: #11141b;
+      border-radius: 6px;
+      padding: 10px 14px;
+      border: 1px solid var(--card-border);
+    }
+
+    summary {
+      cursor: pointer;
+      color: var(--accent-vimeo);
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    pre {
+      margin-top: 10px;
+      padding: 10px;
+      background: #0d1017;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #8b949e;
+      overflow-x: auto;
+      max-height: 250px;
+    }
+  </style>
+
+  <!-- Local Network Mocks and Isolated Stand Setup -->
+  <script>
+    (function initVimeoTestStandEnvironment() {
+      // 1. Mock extension base URL
+      window.__SC = window.__SC || {};
+      window.__SC.extensionBaseUrl = '../../../../../';
+
+      // 2. Mock chrome.runtime to prevent network or extension errors
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.getURL) {
+        window.chrome = window.chrome || {};
+        window.chrome.runtime = window.chrome.runtime || {};
+        window.chrome.runtime.getURL = (path) => '../../../../../' + path;
+        window.chrome.runtime.sendMessage = (msg, cb) => {
+          if (msg && msg.type === 'TRANSLATE_TEXT') {
+            if (cb) cb({ success: true, translated: '[Тест] ' + msg.text });
+          } else {
+            if (cb) cb({ success: true });
+          }
+          return Promise.resolve({ success: true });
+        };
+        window.chrome.runtime.onMessage = window.chrome.runtime.onMessage || {
+          addListener: () => {},
+          removeListener: () => {}
+        };
+      }
+
+      // 3. Prevent external network requests via fetch interceptor
+      const originalFetch = window.fetch;
+      window.fetch = async function(input, init) {
+        const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+        if (urlStr.includes('vimeo.com') || urlStr.includes('translate') || urlStr.includes('timedtext')) {
+          return new Response(JSON.stringify({ success: true, mock: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return originalFetch.apply(this, arguments);
+      };
+
+      // 4. Mock offline translation in __SC
+      window.__SC.fetchTranslation = async function(text) {
+        return `[Перевод] ${text}`;
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div class="main-container">
+    <header>
+      <div class="header-title">
+        <span class="header-badge">Vimeo</span>
+        <h1>Изолированный тестовый стенд (Vimeo Player Capturer)</h1>
+      </div>
+      <div class="header-meta">Platform Adapter &bull; Player SDK API</div>
+    </header>
+
+    <!-- Vimeo Player Container -->
+    <div class="player-card" id="vimeo-player-card">
+      <div class="player-wrapper">
+        <video 
+          class="vimeo-video-element" 
+          id="vimeo-video"
+          autoplay 
+          muted 
+          loop 
+          playsinline 
+          src="../../../../../../test/sample.mp4">
+          <source src="../../../../../../test/sample.mp4" type="video/mp4">
+        </video>
+
+        <!-- Vimeo Subtitles Display Overlay -->
+        <div class="vimeo-subtitles-overlay">
+          <div class="vimeo-caption-cue" id="vimeo-caption-display"></div>
+        </div>
+
+        <!-- Custom Vimeo Controls Bar -->
+        <div class="vimeo-controls-bar">
+          <div class="controls-left">
+            <button class="vimeo-btn" id="btn-play-toggle" title="Воспроизвести / Пауза">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" id="play-icon-path"/>
+              </svg>
+            </button>
+            <div class="vimeo-time">
+              <span id="current-time">0:00</span> / <span id="duration-time">0:00</span>
+            </div>
+          </div>
+
+          <div class="controls-right">
+            <button class="vimeo-btn active" id="btn-cc-toggle" title="Включить / Выключить субтитры">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.89-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test Suite Status & Diagnostics Panel -->
+    <div class="card">
+      <div class="card-header">
+        <h2>
+          <span>Панель статуса тестов</span>
+        </h2>
+        <span class="test-badge running" id="overall-badge">Тестирование...</span>
+      </div>
+
+      <div class="status-grid">
+        <div class="status-item">
+          <div class="status-label">Воспроизведение:</div>
+          <div class="status-value" id="diag-playback">Воспроизведение (muted)</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Активная дорожка Vimeo:</div>
+          <div class="status-value" id="diag-track">English (en)</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Активный субтитр Vimeo:</div>
+          <div class="status-value" id="diag-cue">—</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Статус расширения:</div>
+          <div class="status-value" id="diag-extension">Инициализация...</div>
+        </div>
+      </div>
+
+      <table class="test-table">
+        <thead>
+          <tr>
+            <th>Тест</th>
+            <th>Статус</th>
+            <th>Описание / Ошибки</th>
+          </tr>
+        </thead>
+        <tbody id="test-results-body">
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted);">Выполнение сценариев тестирования...</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="actions-bar">
+        <button class="action-btn" id="btn-rerun-tests">Перезапустить тесты</button>
+        <button class="action-btn secondary" id="btn-toggle-widget">Открыть виджет расширения</button>
+        <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+          <span style="font-size: 13px; color: var(--text-muted);">Дорожка Vimeo:</span>
+          <select id="vimeo-track-select">
+            <option value="en" selected>English (en)</option>
+            <option value="ru">Русский (ru)</option>
+          </select>
+        </div>
+      </div>
+
+      <details>
+        <summary>Просмотр нормализованной модели SubtitleTrack (JSON)</summary>
+        <pre id="json-preview">// Результаты тестов появятся здесь...</pre>
+      </details>
+    </div>
+  </div>
+
+  <!-- Player controls & diagnostics sync logic -->
+  <script>
+    (function setupVimeoStandUI() {
+      const video = document.getElementById('vimeo-video');
+      const playToggleBtn = document.getElementById('btn-play-toggle');
+      const playIconPath = document.getElementById('play-icon-path');
+      const ccToggleBtn = document.getElementById('btn-cc-toggle');
+      const currentTimeEl = document.getElementById('current-time');
+      const durationTimeEl = document.getElementById('duration-time');
+      const captionDisplay = document.getElementById('vimeo-caption-display');
+      const diagPlayback = document.getElementById('diag-playback');
+      const diagTrack = document.getElementById('diag-track');
+      const diagCue = document.getElementById('diag-cue');
+      const diagExtension = document.getElementById('diag-extension');
+      const trackSelect = document.getElementById('vimeo-track-select');
+      const btnRerun = document.getElementById('btn-rerun-tests');
+      const btnToggleWidget = document.getElementById('btn-toggle-widget');
+      const overallBadge = document.getElementById('overall-badge');
+      const testResultsBody = document.getElementById('test-results-body');
+      const jsonPreview = document.getElementById('json-preview');
+
+      let subtitlesEnabled = true;
+      let currentLang = 'en';
+
+      function formatTime(sec) {
+        if (isNaN(sec)) return '0:00';
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+      }
+
+      // Sync active cue with current video time
+      function syncSubtitles() {
+        if (!subtitlesEnabled) {
+          captionDisplay.textContent = '';
+          diagCue.textContent = 'Отключены (CC Off)';
+          return;
+        }
+
+        const tracks = window.MOCK_VIMEO_TRACKS || [];
+        const track = tracks.find(t => t.language === currentLang) || tracks[0];
+        if (!track || !track.cues) return;
+
+        const time = video.currentTime;
+        const activeCue = track.cues.find(c => time >= c.startTime && time <= c.endTime);
+
+        if (activeCue) {
+          captionDisplay.textContent = activeCue.text.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+          diagCue.textContent = `"${captionDisplay.textContent}" (${formatTime(activeCue.startTime)} - ${formatTime(activeCue.endTime)})`;
+          if (window.vimeoPlayer && window.vimeoPlayer.trigger) {
+            window.vimeoPlayer.trigger('cuechange', activeCue);
+          }
+        } else {
+          captionDisplay.textContent = '';
+          diagCue.textContent = '—';
+        }
+      }
+
+      video.addEventListener('timeupdate', () => {
+        currentTimeEl.textContent = formatTime(video.currentTime);
+        syncSubtitles();
+      });
+
+      video.addEventListener('loadedmetadata', () => {
+        durationTimeEl.textContent = formatTime(video.duration);
+      });
+
+      video.addEventListener('play', () => {
+        diagPlayback.textContent = 'Воспроизведение';
+        playIconPath.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z');
+      });
+
+      video.addEventListener('pause', () => {
+        diagPlayback.textContent = 'На паузе';
+        playIconPath.setAttribute('d', 'M8 5v14l11-7z');
+      });
+
+      playToggleBtn.addEventListener('click', () => {
+        if (video.paused) video.play(); else video.pause();
+      });
+
+      ccToggleBtn.addEventListener('click', () => {
+        subtitlesEnabled = !subtitlesEnabled;
+        ccToggleBtn.classList.toggle('active', subtitlesEnabled);
+        syncSubtitles();
+      });
+
+      trackSelect.addEventListener('change', async (e) => {
+        currentLang = e.target.value;
+        diagTrack.textContent = currentLang === 'ru' ? 'Русский (ru)' : 'English (en)';
+        if (window.vimeoPlayer && window.vimeoPlayer.enableTextTrack) {
+          await window.vimeoPlayer.enableTextTrack(currentLang);
+        }
+        syncSubtitles();
+      });
+
+      // Update UI table with test results
+      function updateTestUI(results) {
+        if (!results) return;
+
+        if (results.passed) {
+          overallBadge.textContent = 'Passed';
+          overallBadge.className = 'test-badge passed';
+        } else {
+          overallBadge.textContent = 'Failed';
+          overallBadge.className = 'test-badge failed';
+        }
+
+        if (Array.isArray(results.tests) && results.tests.length > 0) {
+          testResultsBody.innerHTML = results.tests.map(t => `
+            <tr>
+              <td><strong>${t.name}</strong></td>
+              <td><span class="status-tag ${t.passed ? 'passed' : 'failed'}">${t.passed ? 'Passed' : 'Failed'}</span></td>
+              <td>${t.passed ? 'Успешно' : '<span style="color:var(--accent-red);">' + (t.errors.join('<br>') || 'Ошибка') + '</span>'}</td>
+            </tr>
+          `).join('');
+        }
+
+        jsonPreview.textContent = JSON.stringify(results, null, 2);
+      }
+
+      window.addEventListener('VIMEO_TESTS_COMPLETED', (e) => {
+        updateTestUI(e.detail);
+      });
+
+      btnRerun.addEventListener('click', async () => {
+        overallBadge.textContent = 'Тестирование...';
+        overallBadge.className = 'test-badge running';
+        if (typeof window.runVimeoTests === 'function') {
+          const res = await window.runVimeoTests();
+          updateTestUI(res);
+        }
+      });
+
+      btnToggleWidget.addEventListener('click', () => {
+        if (window.__SC) {
+          if (window.__SC.state && window.__SC.state.widgetVisible) {
+            if (window.__SC.closeWidget) window.__SC.closeWidget();
+            btnToggleWidget.textContent = 'Открыть виджет расширения';
+          } else {
+            if (window.__SC.openWidget) window.__SC.openWidget();
+            btnToggleWidget.textContent = 'Закрыть виджет расширения';
+          }
+        }
+      });
+
+      // Check extension connection status
+      const extCheck = setInterval(() => {
+        if (window.__SC && window.__SC.hostEl) {
+          diagExtension.textContent = 'Подключено (Overlay & Widget активны)';
+          diagExtension.style.color = 'var(--accent-green)';
+          clearInterval(extCheck);
+        }
+      }, 300);
+
+      video.play().catch(() => {
+        diagPlayback.textContent = 'Autoplay заблокирован: нажмите Play';
+      });
+    })();
+  </script>
+
+  <!-- Module Implementation -->
+  <script src="../index.js"></script>
+
+  <!-- Test Suite Script -->
+  <script src="test.js"></script>
+
+  <!-- Extension Main Entry Point -->
+  <script src="../../../../../content.js"></script>
+</body>
+</html>

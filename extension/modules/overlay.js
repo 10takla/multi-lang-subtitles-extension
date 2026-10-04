@@ -138,7 +138,7 @@
       } else {
         const targetLang = item.targetLang || item.lang || 'en';
         const transText = activeLine.translations
-          ? (activeLine.translations[item.id] || activeLine.translations[targetLang])
+          ? (activeLine.translations[item.id] || activeLine.translations[targetLang] || null)
           : null;
         if (transText !== null && !transText.trim()) return;
 

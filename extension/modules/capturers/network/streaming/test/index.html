@@ -264,6 +264,23 @@
       </div>
     </header>
 
+    <!-- Test Results Indicator Card -->
+    <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-left: 4px solid var(--accent); border-radius: 10px; padding: 14px 18px;" id="test-runner-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 style="font-size: 0.95rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>🧪 Автотест модуля (HLS / DASH Streaming & SubtitleTrack)</span>
+        </h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span id="test-status-badge" style="background: #eab308; color: #000; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Выполняется...</span>
+          <button class="btn" style="padding: 4px 8px; font-size: 11px; background: #0b1120; border: 1px solid var(--card-border); border-radius: 6px;" onclick="window.runSubtitlesTests && window.runSubtitlesTests()">Повторить тест</button>
+        </div>
+      </div>
+      <div id="test-summary" style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
+        Инициализация тестов и валидация модели SubtitleTrack...
+      </div>
+      <ul id="test-details-list" style="list-style: none; padding: 0; margin: 0; font-size: 12px; font-family: monospace;"></ul>
+    </div>
+
     <!-- Player Card -->
     <div class="player-card">
       <!-- Video Viewport -->
@@ -734,6 +751,9 @@
       setTimeout(() => clearInterval(checkExtensionInterval), 4000);
     })();
   </script>
+
+  <!-- Test script -->
+  <script src="test.js"></script>
 
   <!-- Point of entry for subtitles extension -->
   <script src="../../../../../content.js"></script>

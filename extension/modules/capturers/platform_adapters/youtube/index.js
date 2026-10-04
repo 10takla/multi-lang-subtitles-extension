@@ -240,6 +240,47 @@
   document.addEventListener('yt-page-data-updated', handleYtNav);
 
   /**
+   * Parses YouTube TimedText JSON3 object into cue array.
+   */
+  SC.parseYouTubeJson3 = function(data) {
+    if (!data || !Array.isArray(data.events)) return [];
+    return data.events
+      .filter(e => e.segs && e.segs.length > 0)
+      .map(e => ({
+        start: (e.tStartMs || 0) / 1000,
+        end: ((e.tStartMs || 0) + (e.dDurationMs || 0)) / 1000,
+        text: SC.cleanText ? SC.cleanText(e.segs.map(s => s.utf8 || '').join('')) : e.segs.map(s => s.utf8 || '').join('').trim()
+      }))
+      .filter(c => c.text && c.text.length > 0);
+  };
+
+  /**
+   * Parses YouTube TimedText XML string into cue array.
+   */
+  SC.parseYouTubeXml = function(xmlText) {
+    if (!xmlText) return [];
+    try {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+      const textNodes = xmlDoc.querySelectorAll('text');
+      const cues = [];
+      if (textNodes && textNodes.length > 0) {
+        textNodes.forEach(node => {
+          const start = parseFloat(node.getAttribute('start') || '0');
+          const dur = parseFloat(node.getAttribute('dur') || '0');
+          const clean = SC.cleanText ? SC.cleanText(node.textContent || '') : (node.textContent || '').trim();
+          if (clean) {
+            cues.push({ start, end: start + dur, text: clean });
+          }
+        });
+      }
+      return cues;
+    } catch (_) {
+      return [];
+    }
+  };
+
+  /**
    * Fetch complete timedtext track via direct JSON3 or XML request.
    * Parses all cue events for the entire video timeline.
    */
@@ -270,36 +311,12 @@
       const rawBody = await res.text();
       let cues = [];
 
-      // Try JSON3 parsing first
+      // Try JSON3 parsing first, then fallback to XML
       try {
         const data = JSON.parse(rawBody);
-        if (data && Array.isArray(data.events)) {
-          cues = data.events
-            .filter(e => e.segs && e.segs.length > 0)
-            .map(e => ({
-              start: (e.tStartMs || 0) / 1000,
-              end: ((e.tStartMs || 0) + (e.dDurationMs || 0)) / 1000,
-              text: SC.cleanText ? SC.cleanText(e.segs.map(s => s.utf8 || '').join('')) : e.segs.map(s => s.utf8 || '').join('').trim()
-            }))
-            .filter(c => c.text && c.text.length > 0);
-        }
+        cues = SC.parseYouTubeJson3(data);
       } catch (_) {
-        // XML parsing fallback (srv1 / srv3 transcript XML)
-        try {
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(rawBody, 'text/xml');
-          const textNodes = xmlDoc.querySelectorAll('text');
-          if (textNodes && textNodes.length > 0) {
-            textNodes.forEach(node => {
-              const start = parseFloat(node.getAttribute('start') || '0');
-              const dur = parseFloat(node.getAttribute('dur') || '0');
-              const clean = SC.cleanText ? SC.cleanText(node.textContent || '') : (node.textContent || '').trim();
-              if (clean) {
-                cues.push({ start, end: start + dur, text: clean });
-              }
-            });
-          }
-        } catch (_) {}
+        cues = SC.parseYouTubeXml(rawBody);
       }
 
       if (cues && cues.length > 0) {

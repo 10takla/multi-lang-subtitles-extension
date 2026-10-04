@@ -40,6 +40,8 @@
         "modules/capturers/platform_adapters/drm/index.js",
         "modules/capturers/platform_adapters/vimeo/index.js",
         "modules/capturers/platform_adapters/youtube/index.js",
+        "modules/capturers/platform_adapters/coursera/index.js",
+        "modules/capturers/platform_adapters/netflix/index.js",
         "modules/capturers/network/file/index.js",
         "modules/capturers/network/hls/index.js",
         "modules/capturers/network/dash/index.js",

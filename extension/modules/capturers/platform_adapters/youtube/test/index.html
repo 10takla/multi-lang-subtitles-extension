@@ -246,6 +246,23 @@
       <h1>Изолированный тестовый стенд (YouTube Player Emulation)</h1>
     </header>
 
+    <!-- Test Results Indicator Card -->
+    <div style="background: #212121; border: 1px solid #333; border-left: 4px solid #ff0000; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;" id="test-runner-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 style="font-size: 15px; font-weight: 600; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>🧪 Автотест модуля (YouTube TimedText JSON3/XML & SubtitleTrack)</span>
+        </h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span id="test-status-badge" style="background: #eab308; color: #000; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Выполняется...</span>
+          <button style="padding: 4px 8px; font-size: 11px; background: #333; color: #fff; border: 1px solid #444; border-radius: 4px; cursor: pointer;" onclick="window.runSubtitlesTests && window.runSubtitlesTests()">Повторить тест</button>
+        </div>
+      </div>
+      <div id="test-summary" style="font-size: 12px; color: #aaa; margin-bottom: 6px;">
+        Инициализация тестов и валидация модели SubtitleTrack...
+      </div>
+      <ul id="test-details-list" style="list-style: none; padding: 0; margin: 0; font-size: 12px; font-family: monospace;"></ul>
+    </div>
+
     <!-- YouTube Player Container -->
     <div id="movie_player" class="html5-video-player ytp-exp-bottom-control-flexbox">
       <!-- Video Element -->
@@ -578,6 +595,9 @@
       });
     })();
   </script>
+
+  <!-- Test script -->
+  <script src="test.js"></script>
 
   <!-- Extension Main Entry Point -->
   <script src="../../../../../content.js"></script>

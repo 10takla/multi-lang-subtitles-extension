@@ -288,6 +288,23 @@
       </div>
     </header>
 
+    <!-- Test Results Indicator Card -->
+    <div class="info-card" id="test-runner-card" style="border-left: 4px solid #388bfd;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>🧪 Автотест модуля (HTML5 TextTracks & SubtitleTrack)</span>
+        </h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span id="test-status-badge" style="background: #e3b341; color: #000; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Выполняется...</span>
+          <button class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="window.runSubtitlesTests && window.runSubtitlesTests()">Повторить тест</button>
+        </div>
+      </div>
+      <div id="test-summary" style="font-size: 12px; color: #8b949e; margin-bottom: 6px;">
+        Инициализация тестов и валидация модели SubtitleTrack...
+      </div>
+      <ul id="test-details-list" style="list-style: none; padding: 0; margin: 0; font-size: 12px; font-family: monospace;"></ul>
+    </div>
+
     <!-- Video Player Card -->
     <div class="player-card">
       <div class="video-wrapper">
@@ -531,6 +548,9 @@
       });
     })();
   </script>
+
+  <!-- Test script -->
+  <script src="test.js"></script>
 
   <!-- Connect extension main entry point -->
   <script src="../../../../../content.js"></script>

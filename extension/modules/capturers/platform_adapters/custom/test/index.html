@@ -68,6 +68,23 @@
     <p>Эмуляция плеера со встроенной конфигурацией субтитров и реальным интерфейсом расширения</p>
   </div>
 
+  <!-- Test Results Indicator Card -->
+  <div style="width: 100%; max-width: 860px; background: #16181e; border: 1px solid #282c35; border-left: 4px solid #3b82f6; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;" id="test-runner-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <h2 style="font-size: 15px; font-weight: 600; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+        <span>🧪 Автотест модуля (Custom Playerjs & SubtitleTrack)</span>
+      </h2>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span id="test-status-badge" style="background: #eab308; color: #000; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Выполняется...</span>
+        <button style="padding: 4px 8px; font-size: 11px; background: #282c35; color: #fff; border: 1px solid #3e4451; border-radius: 6px; cursor: pointer;" onclick="window.runSubtitlesTests && window.runSubtitlesTests()">Повторить тест</button>
+      </div>
+    </div>
+    <div id="test-summary" style="font-size: 12px; color: #8c9ba5; margin-bottom: 6px;">
+      Инициализация тестов и валидация модели SubtitleTrack...
+    </div>
+    <ul id="test-details-list" style="list-style: none; padding: 0; margin: 0; font-size: 12px; font-family: monospace;"></ul>
+  </div>
+
   <div class="player-wrapper">
     <!-- Кастомный плеер Playerjs -->
     <div id="playerjs" class="playerjs-container">
@@ -163,6 +180,9 @@ Third line: subtitles captured successfully
       }, 150);
     });
   </script>
+
+  <!-- Скрипт тестирования -->
+  <script src="test.js"></script>
 
   <!-- Точка входа расширения (оркестратор и загрузчик модулей) -->
   <script src="../../../../../content.js"></script>

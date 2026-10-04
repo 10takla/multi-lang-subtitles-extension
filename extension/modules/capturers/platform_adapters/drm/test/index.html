@@ -177,6 +177,23 @@
       </div>
     </header>
 
+    <!-- Test Results Indicator Card -->
+    <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-left: 4px solid var(--accent-red); border-radius: 8px; padding: 14px 18px;" id="test-runner-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 style="font-size: 15px; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>🧪 Автотест модуля (DRM Netflix / OTT & SubtitleTrack)</span>
+        </h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span id="test-status-badge" style="background: #e3b341; color: #000; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Выполняется...</span>
+          <button style="padding: 4px 8px; font-size: 11px; background: #333; color: #fff; border: 1px solid #444; border-radius: 4px; cursor: pointer;" onclick="window.runSubtitlesTests && window.runSubtitlesTests()">Повторить тест</button>
+        </div>
+      </div>
+      <div id="test-summary" style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
+        Инициализация тестов и валидация модели SubtitleTrack...
+      </div>
+      <ul id="test-details-list" style="list-style: none; padding: 0; margin: 0; font-size: 12px; font-family: monospace;"></ul>
+    </div>
+
     <!-- Netflix / OTT Player Container -->
     <div class="netflix-player-container" data-uia="player-container" id="player-container">
       <video
@@ -353,6 +370,9 @@
       });
     })();
   </script>
+
+  <!-- Скрипт тестирования -->
+  <script src="test.js"></script>
 
   <!-- Точка входа расширения -->
   <script src="../../../../../content.js"></script>

@@ -117,6 +117,13 @@
     },
 
     /**
+     * Alias for startObserving to observe live subtitle mutations.
+     */
+    observe: function(targetElement, onCueCallback) {
+      return this.startObserving(targetElement, onCueCallback);
+    },
+
+    /**
      * Parses DOM snippet or raw text into normalized SubtitleTrack.
      */
     parse: function(domSnippetOrText, options = {}) {
