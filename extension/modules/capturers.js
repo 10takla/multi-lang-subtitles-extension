@@ -643,7 +643,7 @@
         const videos = doc.querySelectorAll('video');
         videos.forEach(v => {
           SC.hookVideo(v);
-          if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
+          if (v.ownerDocument === document && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
             if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(v);
           }
         });
@@ -706,8 +706,8 @@
         }
 
         if (checkGeneric) {
-          const video = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
-          if (video && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
+          const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
+          if (video && video.ownerDocument === document && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
             if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
           }
           if (SC.getDOMSubtitleText) {

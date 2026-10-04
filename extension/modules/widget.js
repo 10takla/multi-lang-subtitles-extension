@@ -17,6 +17,14 @@
 
   // Open control panel
   SC.openWidget = function() {
+    const localVideo = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
+    if (!localVideo) {
+      if (SC.isTopFrame && SC.forwardCommandToFrames) {
+        SC.forwardCommandToFrames('TOGGLE_WIDGET');
+      }
+      return;
+    }
+    SC.state.activeVideo = localVideo;
     SC.state.widgetVisible = true;
     if (SC.widgetEl) {
       SC.widgetEl.classList.remove('sc-hidden');
@@ -35,6 +43,7 @@
     if (SC.state.autoScroll && SC.scrollListToBottom) {
       SC.scrollListToBottom();
     }
+    if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
   };
 
   // Close control panel
@@ -44,6 +53,7 @@
       SC.widgetEl.classList.add('sc-hidden');
     }
     if (SC.updateVideoIconsState) SC.updateVideoIconsState();
+    if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
   };
 
   // Update visual state (active class and title) for all on-video launcher icons
@@ -213,6 +223,7 @@
   // Register video as having detected subtitles and create on-video launcher icon with autohide logic
   SC.registerVideoWithSubtitles = function(video) {
     if (!video || !SC.shadowRoot) return;
+    if (video.ownerDocument !== document) return;
     if (SC.videoIcons.has(video)) return;
 
     const iconBtn = document.createElement('button');
@@ -369,9 +380,8 @@
   // Adjust control panel position strictly within video detect window boundaries (ai_instrs/_.md:8)
   SC.updateWidgetPosition = function() {
     if (!SC.widgetEl || !SC.state.widgetVisible) return;
-    const video = SC.getActiveVideo();
-    const doc = video?.ownerDocument || document;
-    if (!video || !doc.contains(video)) {
+    const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
+    if (!video || !document.contains(video)) {
       SC.widgetEl.classList.add('sc-hidden');
       return;
     }

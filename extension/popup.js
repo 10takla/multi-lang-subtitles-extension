@@ -136,7 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (toggleWidgetBtn) {
     toggleWidgetBtn.addEventListener('click', () => {
       if (!currentTabId) return;
-      chrome.tabs.sendMessage(currentTabId, { type: 'TOGGLE_WIDGET' });
+      const cmdId = 'toggle_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      chrome.tabs.sendMessage(currentTabId, { type: 'TOGGLE_WIDGET', cmdId });
     });
   }
 

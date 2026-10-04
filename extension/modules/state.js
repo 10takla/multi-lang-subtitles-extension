@@ -336,17 +336,35 @@
     return rect;
   };
 
-  // Find currently active or playing video element with caching across accessible documents
-  SC.getActiveVideo = function() {
-    if (SC.state.activeVideo) {
-      const doc = SC.state.activeVideo.ownerDocument || document;
-      if (doc.contains(SC.state.activeVideo)) {
-        return SC.state.activeVideo;
+  // Get video strictly local to this document
+  SC.getLocalVideo = function() {
+    if (SC.state.activeVideo && SC.state.activeVideo.ownerDocument === document && document.contains(SC.state.activeVideo)) {
+      return SC.state.activeVideo;
+    }
+    const videos = document.getElementsByTagName('video');
+    for (let i = 0; i < videos.length; i++) {
+      const v = videos[i];
+      if (!v.paused && !v.ended && v.readyState > 2) {
+        SC.state.activeVideo = v;
+        return v;
       }
     }
+    if (videos.length > 0) {
+      SC.state.activeVideo = videos[0];
+      return videos[0];
+    }
+    return null;
+  };
+
+  // Find currently active or playing video element with caching across accessible documents
+  SC.getActiveVideo = function() {
+    const local = SC.getLocalVideo ? SC.getLocalVideo() : null;
+    if (local) return local;
+
     const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
     const allVideos = [];
     for (const doc of docs) {
+      if (doc === document) continue;
       try {
         const videos = doc.getElementsByTagName('video');
         for (let i = 0; i < videos.length; i++) {
@@ -358,11 +376,9 @@
     for (let i = 0; i < allVideos.length; i++) {
       const v = allVideos[i];
       if (!v.paused && !v.ended && v.readyState > 2) {
-        SC.state.activeVideo = v;
         return v;
       }
     }
-    SC.state.activeVideo = allVideos[0];
     return allVideos[0];
   };
 

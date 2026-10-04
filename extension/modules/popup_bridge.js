@@ -16,20 +16,20 @@
     SC._hasInitializedPopupBridge = true;
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      const activeVideo = SC.getActiveVideo ? SC.getActiveVideo() : null;
+      const localVideo = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
 
       // Prevent non-video iframes from overriding main frame response
-      if (!SC.isTopFrame && !activeVideo) {
+      if (!SC.isTopFrame && !localVideo) {
         return false;
       }
 
       if (message.type === 'GET_SUBTITLES') {
         const hasDirectLines = SC.state && SC.state.lines && SC.state.lines.length > 0;
-        if (activeVideo || hasDirectLines || !SC.latestChildFrameData) {
+        if (localVideo || hasDirectLines || !SC.latestChildFrameData) {
           sendResponse({
             lines: (SC.state && SC.state.lines) || [],
-            videoDetected: Boolean(activeVideo),
-            videoTime: activeVideo ? SC.formatTime(activeVideo.currentTime) : null,
+            videoDetected: Boolean(localVideo),
+            videoTime: localVideo ? SC.formatTime(localVideo.currentTime) : null,
             widgetVisible: Boolean(SC.state && SC.state.widgetVisible)
           });
         } else {
@@ -51,17 +51,35 @@
       }
 
       if (message.type === 'TOGGLE_WIDGET') {
-        if (activeVideo || !SC.latestChildFrameData) {
+        const cmdId = message.cmdId;
+        if (cmdId && SC._lastHandledToggleCmdId === cmdId) {
+          sendResponse({ widgetVisible: Boolean(SC.state && SC.state.widgetVisible) });
+          return true;
+        }
+
+        // Only the document containing the actual video element is the owner of the control panel
+        if (localVideo) {
+          if (cmdId) SC._lastHandledToggleCmdId = cmdId;
           if (SC.state && SC.state.widgetVisible) {
             if (SC.closeWidget) SC.closeWidget();
           } else {
             if (SC.openWidget) SC.openWidget();
           }
           sendResponse({ widgetVisible: Boolean(SC.state && SC.state.widgetVisible) });
-        } else {
-          if (SC.forwardCommandToFrames) SC.forwardCommandToFrames('TOGGLE_WIDGET');
-          sendResponse({ widgetVisible: !SC.latestChildFrameData.widgetVisible });
+          return true;
         }
+
+        // Top frame without local video delegates strictly to child frames, never opening a local widget
+        if (SC.isTopFrame) {
+          if (cmdId) SC._lastHandledToggleCmdId = cmdId;
+          if (SC.forwardCommandToFrames) {
+            SC.forwardCommandToFrames('TOGGLE_WIDGET', { cmdId });
+          }
+          const isVisible = SC.latestChildFrameData ? !SC.latestChildFrameData.widgetVisible : false;
+          sendResponse({ widgetVisible: isVisible });
+          return true;
+        }
+
         return true;
       }
 
