@@ -1,0 +1,42 @@
+/* Video Subtitles Capturer - CSS Variables & Base Host Styles */
+
+:host,
+#subtitles-capturer-host {
+  position: fixed;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+  pointer-events: none;
+  --sc-bg-widget: rgba(18, 20, 26, 0.94);
+  --sc-bg-header: rgba(255, 255, 255, 0.04);
+  --sc-bg-bar: rgba(0, 0, 0, 0.28);
+  --sc-bg-overlay: rgba(12, 15, 20, 0.86);
+  --sc-bg-badge: rgba(18, 20, 26, 0.88);
+  --sc-bg-card: rgba(255, 255, 255, 0.05);
+  --sc-border-widget: rgba(255, 255, 255, 0.12);
+  --sc-border-header: rgba(255, 255, 255, 0.08);
+  --sc-border-subtle: rgba(255, 255, 255, 0.06);
+  --sc-primary-blue: #1877f2;
+  --sc-primary-blue-hover: #166fe5;
+  --sc-accent-blue: #60a5fa;
+  --sc-accent-blue-soft: rgba(24, 119, 242, 0.25);
+  --sc-text-main: #f1f3f9;
+  --sc-text-muted: #94a3b8;
+  --sc-text-dim: #64748b;
+  --sc-danger: #ef4444;
+}
+
+.sc-widget,
+.sc-launcher-btn,
+.sc-video-overlay,
+.sc-video-badge-btn {
+  pointer-events: auto !important;
+  box-sizing: border-box !important;
+}
+
+.sc-widget *,
+.sc-launcher-btn *,
+.sc-video-overlay *,
+.sc-video-badge-btn * {
+  box-sizing: border-box !important;
+}
