@@ -172,6 +172,73 @@
   };
 
   /**
+   * Checks whether the video is stopped or its timeline is not moving.
+   * Requirement: ai_instrs/_.md:44: "если видео остановлено, таймлайн не движется, то субтитры не пропадают"
+   */
+  SC.isVideoStoppedOrTimelineStill = function(video) {
+    const v = video || (SC.getActiveVideo ? SC.getActiveVideo() : null);
+    if (!v) return false;
+
+    // Explicit video states indicating stopped / paused
+    if (v.paused || v.ended || v.playbackRate === 0) {
+      return true;
+    }
+
+    // Timeline buffering / stalled / seeking
+    if (v.seeking) {
+      return true;
+    }
+    if (typeof v.readyState === 'number' && v.readyState < 2) {
+      return true;
+    }
+
+    // Track timeline movement between consecutive checks
+    const now = Date.now();
+    if (v._scLastCheckTime && (now - v._scLastCheckTime) >= 300) {
+      if (typeof v._scLastCurrentTime === 'number' && Math.abs(v.currentTime - v._scLastCurrentTime) < 0.01) {
+        return true;
+      }
+    }
+    v._scLastCurrentTime = v.currentTime;
+    v._scLastCheckTime = now;
+
+    return false;
+  };
+
+  /**
+   * Schedules or refreshes the auto-fade timeout for the on-video overlay.
+   * If the video is stopped or the timeline is not moving, subtitles do not disappear.
+   * (ai_instrs/_.md:44: "если видео остановлено, таймлайн не движется, то субтитры не пропадают")
+   */
+  SC.scheduleOverlayFade = function(line) {
+    if (SC.state.overlayFadeTimeout) {
+      clearTimeout(SC.state.overlayFadeTimeout);
+      SC.state.overlayFadeTimeout = null;
+    }
+
+    const targetLine = line || SC.state.currentActiveLine;
+    if (!targetLine) return;
+
+    const video = SC.getActiveVideo();
+    // Do not set fade timer if video is stopped or timeline is not moving
+    if (SC.isVideoStoppedOrTimelineStill(video)) {
+      return;
+    }
+
+    SC.state.overlayFadeTimeout = setTimeout(() => {
+      const v = SC.getActiveVideo();
+      if (SC.isVideoStoppedOrTimelineStill(v)) {
+        // Video is paused or timeline stopped; preserve active subtitle on video
+        return;
+      }
+      if (SC.state.currentActiveLine === targetLine) {
+        SC.state.currentActiveLine = null;
+        if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      }
+    }, 5000);
+  };
+
+  /**
    * Processes a newly captured subtitle line, performs streaming and deduplication checks,
    * updates state, and dispatches to overlay and background scripts.
    */
@@ -197,6 +264,7 @@
       if ((now - lastLine.timestamp) < 6000 || Math.abs(currentVideoTime - lastLine.rawTime) < 8) {
         lastLine.timestamp = now;
         SC.state.currentActiveLine = lastLine;
+        SC.scheduleOverlayFade(lastLine);
         return;
       }
     }
@@ -227,6 +295,7 @@
       if (SC.translateLine) SC.translateLine(lastLine);
       SC.state.currentActiveLine = lastLine;
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      SC.scheduleOverlayFade(lastLine);
       SC.broadcastLineUpdate(lastLine, false);
       return;
     }
@@ -283,14 +352,8 @@
     // Render active subtitle on video overlay
     if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
 
-    // Auto-fade active on-video overlay after 5 seconds
-    if (SC.state.overlayFadeTimeout) clearTimeout(SC.state.overlayFadeTimeout);
-    SC.state.overlayFadeTimeout = setTimeout(() => {
-      if (SC.state.currentActiveLine === newLine) {
-        SC.state.currentActiveLine = null;
-        if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
-      }
-    }, 5000);
+    // Auto-fade active on-video overlay (only when video is playing and timeline moving)
+    SC.scheduleOverlayFade(newLine);
 
     // Notify background script
     try {
@@ -337,8 +400,8 @@
     if (SC.ytActiveCues && SC.ytActiveCues.length > 0) return true;
 
     // 5. Player container subtitle clues
-    const container = video.closest('.html5-video-player, .player, [id*="player"], [class*="player"]') || video.parentElement;
-    if (container) {
+    const container = (video.closest && video.closest('.html5-video-player, .player, [id*="player"], [class*="player"]')) || video.parentElement;
+    if (container && container.querySelector) {
       if (container.querySelector('.ytp-caption-segment, .ytp-subtitles-button, [class*="subtitle"], [class*="caption"], [id*="subtitle"], [id*="caption"], [class*="pjs_"], track')) {
         return true;
       }
@@ -387,18 +450,43 @@
 
     if (!isFirstHook) return;
 
-    // Listen to video state changes to re-check subtitles
+    // Listen to video state changes to re-check subtitles and preserve on pause / stop
     video.addEventListener('loadedmetadata', () => {
       if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
         if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
       }
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
     });
+
+    video.addEventListener('pause', () => {
+      // Subtitles must not disappear when video is paused (ai_instrs/_.md:44)
+      if (SC.state.overlayFadeTimeout) {
+        clearTimeout(SC.state.overlayFadeTimeout);
+        SC.state.overlayFadeTimeout = null;
+      }
+      if (SC.state.currentActiveLine && SC.updateVideoOverlayContent) {
+        SC.updateVideoOverlayContent();
+      }
+    });
+
+    video.addEventListener('ended', () => {
+      // Subtitles must not disappear when video is ended/stopped (ai_instrs/_.md:44)
+      if (SC.state.overlayFadeTimeout) {
+        clearTimeout(SC.state.overlayFadeTimeout);
+        SC.state.overlayFadeTimeout = null;
+      }
+    });
+
     video.addEventListener('play', () => {
       if (SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(video)) {
         if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
       }
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
+      // When playback resumes, start fade timer for active line if timeline is now moving
+      if (SC.state.currentActiveLine && SC.scheduleOverlayFade) {
+        SC.scheduleOverlayFade(SC.state.currentActiveLine);
+      }
     });
 
     // Timeupdate listener for direct YouTube cues, Custom cues, HTML5 cues, and DOM fallback
@@ -459,11 +547,14 @@
           SC.addSubtitleLine(matchedText, matchedStart);
         }
       } else {
-        lastMatchedCueText = null;
-        lastMatchedCueStart = -1;
-        if (SC.state.currentActiveLine !== null) {
-          SC.state.currentActiveLine = null;
-          if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+        // If video is stopped or timeline is not moving, subtitles must not disappear (ai_instrs/_.md:44)
+        if (!SC.isVideoStoppedOrTimelineStill(video)) {
+          lastMatchedCueText = null;
+          lastMatchedCueStart = -1;
+          if (SC.state.currentActiveLine !== null) {
+            SC.state.currentActiveLine = null;
+            if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+          }
         }
       }
 
@@ -479,17 +570,61 @@
     if (SC.videoResizeObserver) {
       try { SC.videoResizeObserver.observe(video); } catch (_) {}
     }
-    video.addEventListener('play', () => {
-      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
-      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
-    });
+
     video.addEventListener('seeked', () => {
       lastMatchedCueText = null;
       lastMatchedCueStart = -1;
-      if (SC.state.currentActiveLine !== null) {
-        SC.state.currentActiveLine = null;
-        if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      const t = video.currentTime;
+      let matchedText = null;
+      let matchedStart = null;
+
+      if (SC.getYouTubeActiveCueAtTime) {
+        const match = SC.getYouTubeActiveCueAtTime(t);
+        if (match) {
+          matchedText = match.text;
+          matchedStart = match.start;
+        }
       }
+
+      if (!matchedText && SC.getCustomActiveCueAtTime) {
+        const match = SC.getCustomActiveCueAtTime(t);
+        if (match) {
+          matchedText = match.text;
+          matchedStart = match.start;
+        }
+      }
+
+      if (!matchedText && SC.getHTML5ActiveCueAtTime) {
+        const primarySelector = SC.state && SC.state.languages
+          ? (SC.state.languages.find(l => l.visible && (l.mode === 'track' || l.type === 'source')) || SC.state.languages[0])
+          : null;
+        const primaryTrackVal = primarySelector ? (primarySelector.trackId || primarySelector.sourceTrack || primarySelector.lang || 'auto') : 'auto';
+        const match = SC.getHTML5ActiveCueAtTime(video, t, primaryTrackVal);
+        if (match) {
+          matchedText = match.text;
+          matchedStart = match.start;
+        }
+      }
+
+      if (!matchedText && SC.getDOMSubtitleText) {
+        const domText = SC.getDOMSubtitleText();
+        if (domText) {
+          matchedText = domText;
+          matchedStart = t;
+        }
+      }
+
+      if (matchedText) {
+        lastMatchedCueText = matchedText;
+        lastMatchedCueStart = matchedStart;
+        SC.addSubtitleLine(matchedText, matchedStart);
+      } else {
+        if (SC.state.currentActiveLine !== null) {
+          SC.state.currentActiveLine = null;
+          if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+        }
+      }
+
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
       if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
     });

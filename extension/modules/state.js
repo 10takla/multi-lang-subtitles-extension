@@ -156,7 +156,8 @@
     currentActiveLine: null,
     overlayFadeTimeout: null,
     activeVideo: null,
-    showLanguageTags: false // Default off (ai_instrs/_.md:26)
+    showLanguageTags: false, // Default off (ai_instrs/_.md:26)
+    subtitlesEnabled: true // Master toggle for subtitles display
   };
 
   SC.MAX_LINES = 250;

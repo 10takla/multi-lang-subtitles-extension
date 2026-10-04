@@ -36,7 +36,7 @@
   SC.updateVideoOverlayPosition = function() {
     if (!SC.overlayEl) return;
     const video = SC.getActiveVideo();
-    if (!video || !SC.state.currentActiveLine) {
+    if (!video || !SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) {
       SC.overlayEl.classList.add('sc-hidden');
       if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
       return;
@@ -96,7 +96,7 @@
     if (!linesContainer) return;
 
     const activeLine = SC.state.currentActiveLine;
-    if (!activeLine) {
+    if (!activeLine || SC.state.subtitlesEnabled === false) {
       linesContainer.innerHTML = '';
       SC.overlayEl.classList.add('sc-hidden');
       return;

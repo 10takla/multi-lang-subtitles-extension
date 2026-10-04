@@ -214,6 +214,9 @@
 
     const host = document.createElement('div');
     host.id = 'subtitles-capturer-host';
+    host.style.position = 'fixed';
+    host.style.zIndex = '2147483647';
+    host.style.pointerEvents = 'none';
     (document.body || document.documentElement).appendChild(host);
 
     const shadow = host.attachShadow({ mode: 'open' });
@@ -232,6 +235,7 @@
     const baseStyle = document.createElement('style');
     baseStyle.textContent = `
       :host, #subtitles-capturer-host { position: fixed; z-index: 2147483647; pointer-events: none; }
+      .sc-hidden { display: none !important; }
       .sc-video-badge-btn {
         position: fixed !important;
         width: 32px !important;
@@ -254,6 +258,14 @@
       .sc-video-badge-btn svg { width: 18px !important; height: 18px !important; fill: currentColor !important; pointer-events: none !important; }
       .sc-video-badge-btn:hover { background: rgba(24, 119, 242, 0.95) !important; }
       .sc-video-badge-btn.sc-active { background: rgba(24, 119, 242, 0.95) !important; border-color: #60a5fa !important; color: #ffffff !important; }
+      .sc-subtitles-toggle-wrap { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; padding: 2px 7px; background: rgba(255, 255, 255, 0.07); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; user-select: none; }
+      .sc-subtitles-toggle-label { font-size: 11px; font-weight: 600; color: #e2e8f0; line-height: 1; }
+      .sc-switch { position: relative; display: inline-block; width: 26px; height: 14px; cursor: pointer; margin: 0; }
+      .sc-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+      .sc-switch-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(148, 163, 184, 0.35); border-radius: 14px; transition: 0.2s; }
+      .sc-switch-slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #fff; border-radius: 50%; transition: 0.2s; }
+      .sc-switch input:checked + .sc-switch-slider { background-color: #1877f2; }
+      .sc-switch input:checked + .sc-switch-slider:before { transform: translateX(12px); }
     `;
     shadow.appendChild(baseStyle);
 
@@ -270,6 +282,13 @@
           <span id="sc-status">Мультисубтитры</span>
         </div>
         <div class="sc-header-actions">
+          <div class="sc-subtitles-toggle-wrap" id="sc-toggle-subtitles-wrap" title="Субтитры: Вкл">
+            <span class="sc-subtitles-toggle-label" id="sc-toggle-subtitles-label">Вкл</span>
+            <label class="sc-switch">
+              <input type="checkbox" id="sc-toggle-subtitles" checked>
+              <span class="sc-switch-slider"></span>
+            </label>
+          </div>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
           <button class="sc-btn-icon" id="sc-btn-font-dec" title="Уменьшить шрифт">A-</button>
           <button class="sc-btn-icon" id="sc-btn-font-inc" title="Увеличить шрифт">A+</button>
@@ -924,6 +943,34 @@
     setupInputField(inputY, sliderY, false);
 
     SC.syncPositionSliders();
+
+    // Master subtitles toggle (enable / disable subtitles display)
+    const toggleSubtitles = shadow.getElementById('sc-toggle-subtitles');
+    const toggleWrap = shadow.getElementById('sc-toggle-subtitles-wrap');
+    const toggleLabel = shadow.getElementById('sc-toggle-subtitles-label');
+    if (toggleSubtitles) {
+      const updateToggleUI = () => {
+        const isEnabled = SC.state.subtitlesEnabled !== false;
+        toggleSubtitles.checked = isEnabled;
+        if (toggleLabel) toggleLabel.textContent = isEnabled ? 'Вкл' : 'Выкл';
+        if (toggleWrap) {
+          toggleWrap.title = isEnabled ? 'Субтитры: Вкл' : 'Субтитры: Выкл';
+          toggleWrap.classList.toggle('sc-disabled', !isEnabled);
+        }
+      };
+      updateToggleUI();
+
+      toggleSubtitles.addEventListener('change', () => {
+        SC.state.subtitlesEnabled = toggleSubtitles.checked;
+        updateToggleUI();
+        showStatus(SC.state.subtitlesEnabled ? 'Субтитры включены' : 'Субтитры выключены');
+        if (SC.state.subtitlesEnabled) {
+          if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+        } else {
+          if (SC.overlayEl) SC.overlayEl.classList.add('sc-hidden');
+        }
+      });
+    }
 
     // Language tags prefix toggle (ai_instrs/_.md:23)
     if (langTagsBtn) {
