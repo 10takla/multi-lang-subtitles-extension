@@ -167,3 +167,20 @@
     transform: translateY(0);
   }
 }
+
+.sc-style-subgroup {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 12px;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--sc-accent-blue, #60a5fa);
+  border-radius: 4px;
+  margin: 2px 0;
+}
+
+.sc-style-subgroup.sc-hidden {
+  display: none !important;
+}

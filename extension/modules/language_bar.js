@@ -153,13 +153,10 @@
       dragHandle.addEventListener('pointercancel', endPointerDrag);
       orderControls.appendChild(dragHandle);
 
-      // Up / Down arrow buttons for order change
-      const arrowsWrap = document.createElement('div');
-      arrowsWrap.className = 'sc-lang-arrows';
-
+      // Up / Down arrow buttons for order change styled as sc-btn-mini (ai_instrs/_.md:42)
       const btnUp = document.createElement('button');
       btnUp.type = 'button';
-      btnUp.className = 'sc-lang-arrow-btn sc-lang-arrow-up';
+      btnUp.className = 'sc-btn-mini';
       btnUp.title = 'Переместить вверх';
       btnUp.textContent = '▲';
       btnUp.disabled = index === 0;
@@ -172,10 +169,11 @@
           if (SC.renderAllLines) SC.renderAllLines();
         }
       });
+      orderControls.appendChild(btnUp);
 
       const btnDown = document.createElement('button');
       btnDown.type = 'button';
-      btnDown.className = 'sc-lang-arrow-btn sc-lang-arrow-down';
+      btnDown.className = 'sc-btn-mini';
       btnDown.title = 'Переместить вниз';
       btnDown.textContent = '▼';
       btnDown.disabled = index === SC.state.languages.length - 1;
@@ -188,10 +186,7 @@
           if (SC.renderAllLines) SC.renderAllLines();
         }
       });
-
-      arrowsWrap.appendChild(btnUp);
-      arrowsWrap.appendChild(btnDown);
-      orderControls.appendChild(arrowsWrap);
+      orderControls.appendChild(btnDown);
 
       row.appendChild(orderControls);
 
@@ -467,39 +462,9 @@
 
       row.appendChild(controls);
 
-      // Actions: Move up/down and delete
+      // Actions: delete selector
       const actions = document.createElement('div');
       actions.className = 'sc-lang-actions';
-
-      if (index > 0) {
-        const upBtn = document.createElement('button');
-        upBtn.className = 'sc-btn-mini';
-        upBtn.title = 'Вверх';
-        upBtn.textContent = '▲';
-        upBtn.addEventListener('click', () => {
-          const tmp = SC.state.languages[index];
-          SC.state.languages[index] = SC.state.languages[index - 1];
-          SC.state.languages[index - 1] = tmp;
-          SC.renderLanguageList();
-          if (SC.renderAllLines) SC.renderAllLines();
-        });
-        actions.appendChild(upBtn);
-      }
-
-      if (index < SC.state.languages.length - 1) {
-        const downBtn = document.createElement('button');
-        downBtn.className = 'sc-btn-mini';
-        downBtn.title = 'Вниз';
-        downBtn.textContent = '▼';
-        downBtn.addEventListener('click', () => {
-          const tmp = SC.state.languages[index];
-          SC.state.languages[index] = SC.state.languages[index + 1];
-          SC.state.languages[index + 1] = tmp;
-          SC.renderLanguageList();
-          if (SC.renderAllLines) SC.renderAllLines();
-        });
-        actions.appendChild(downBtn);
-      }
 
       if (SC.state.languages.length > 1) {
         const delBtn = document.createElement('button');

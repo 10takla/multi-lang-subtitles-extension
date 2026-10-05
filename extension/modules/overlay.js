@@ -22,6 +22,13 @@
     shadowRoot.appendChild(overlay);
     SC.overlayEl = overlay;
 
+    // Skeleton preview box for block resizing effects (ai_instrs/_.md:15, 25-26)
+    const skeleton = document.createElement('div');
+    skeleton.className = 'sc-overlay-skeleton sc-hidden';
+    skeleton.id = 'sc-overlay-skeleton';
+    shadowRoot.appendChild(skeleton);
+    SC.overlaySkeletonEl = skeleton;
+
     if (typeof ResizeObserver !== 'undefined') {
       SC.videoResizeObserver = new ResizeObserver(() => {
         if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
@@ -30,6 +37,43 @@
     }
 
     return overlay;
+  };
+
+  // Show skeleton preview for block resizing (ai_instrs/_.md:15, 25-26)
+  SC.showOverlaySkeleton = function(percent) {
+    if (!SC.overlaySkeletonEl) return;
+    const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
+    if (!video || !document.contains(video)) return;
+    const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
+    if (vRect.width < 50 || vRect.height < 50) return;
+
+    const pct = typeof percent === 'number' ? percent : (SC.state.globalStyles?.maxWidthPercent ?? 100);
+    const targetW = Math.round(vRect.width * (Math.max(10, Math.min(100, pct)) / 100));
+    const targetH = Math.max(40, SC.overlayEl?.offsetHeight || 50);
+
+    const posXPercent = typeof SC.state.overlayPosX === 'number' ? SC.state.overlayPosX : 50;
+    const posYPercent = typeof SC.state.overlayPosY === 'number' ? SC.state.overlayPosY : 90;
+
+    const availW = Math.max(0, vRect.width - targetW);
+    const availH = Math.max(0, vRect.height - targetH);
+    const posX = vRect.left + (availW * (posXPercent / 100));
+    const posY = vRect.top + (availH * (posYPercent / 100));
+
+    const el = SC.overlaySkeletonEl;
+    el.style.width = `${targetW}px`;
+    el.style.height = `${targetH}px`;
+    el.style.left = `${Math.round(posX)}px`;
+    el.style.top = `${Math.round(posY)}px`;
+    el.textContent = `Макс. ширина: ${pct}% (${targetW}px)`;
+    el.classList.remove('sc-hidden');
+    el.classList.add('sc-skeleton-active');
+  };
+
+  // Hide skeleton preview (ai_instrs/_.md:25-26)
+  SC.hideOverlaySkeleton = function() {
+    if (!SC.overlaySkeletonEl) return;
+    SC.overlaySkeletonEl.classList.remove('sc-skeleton-active');
+    SC.overlaySkeletonEl.classList.add('sc-hidden');
   };
 
   // Adjust overlay position strictly within video boundaries ("в рамках окна видео")
@@ -59,16 +103,25 @@
     const scaleFactor = Math.max(0.7, Math.min(1.6, vRect.width / 800));
     const dynamicFontSize = Math.round(SC.state.fontSize * scaleFactor);
     SC.overlayEl.style.fontSize = `${dynamicFontSize}px`;
-    SC.overlayEl.style.maxWidth = `${Math.round(vRect.width * 0.92)}px`;
+
+    // Max width of subtitle list text: 0-100% of video detect window (ai_instrs/_.md:15)
+    const gStyles = SC.state.globalStyles || {};
+    const maxWPercent = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 100;
+    SC.overlayEl.style.maxWidth = `${Math.round(vRect.width * (Math.max(10, Math.min(100, maxWPercent)) / 100))}px`;
+
+    // Alignment of subtitle list text (ai_instrs/_.md:16, default left)
+    const textAlign = gStyles.textAlign || 'left';
+    SC.overlayEl.style.textAlign = textAlign;
 
     // Apply global sub-list background and gap (ai_instrs/_.md:12-14)
-    const gStyles = SC.state.globalStyles || {};
     const subListBg = gStyles.subListBg || {};
     const linesContainer = SC.shadowRoot?.getElementById('sc-video-overlay-lines');
     if (linesContainer) {
       const lineGap = gStyles.lineGap !== undefined ? `${gStyles.lineGap}px` : '3px';
       linesContainer.style.setProperty('--sc-overlay-gap', lineGap);
       linesContainer.style.gap = lineGap;
+      linesContainer.style.textAlign = textAlign;
+      linesContainer.style.alignItems = textAlign === 'center' ? 'center' : (textAlign === 'right' ? 'flex-end' : 'flex-start');
     }
 
     if (subListBg.enabled) {
@@ -169,15 +222,19 @@
         
         // Background resolution: selectorBg from global styles vs individual background override
         const isBgEnabled = itemSt.bgEnabled !== undefined && itemSt.bgEnabled !== 'inherit'
-          ? itemSt.bgEnabled
+          ? (itemSt.bgEnabled === true || itemSt.bgEnabled === 'on')
           : Boolean(gSelectorBg.enabled);
         const effectiveBgColor = itemSt.bgColor && itemSt.bgColor !== 'inherit'
           ? itemSt.bgColor
           : (gSelectorBg.color || 'rgba(0, 0, 0, 0.75)');
-        const effectiveBgPaddingY = gSelectorBg.paddingY ?? 2;
-        const effectiveBgPaddingX = gSelectorBg.paddingX ?? 6;
+        const effectiveBgPaddingY = (itemSt.paddingY !== undefined && itemSt.paddingY !== 'inherit')
+          ? itemSt.paddingY
+          : (gSelectorBg.paddingY ?? 2);
+        const effectiveBgPaddingX = Math.round(effectiveBgPaddingY * 2.5);
         const effectiveBgBorderRadius = gSelectorBg.borderRadius ?? 4;
-        const effectiveBgBorder = gSelectorBg.border && gSelectorBg.border !== 'none' ? `border: ${gSelectorBg.border} !important;` : '';
+        const effectiveBgBorder = (itemSt.border && itemSt.border !== 'inherit')
+          ? (itemSt.border !== 'none' ? `border: ${itemSt.border} !important;` : '')
+          : (gSelectorBg.border && gSelectorBg.border !== 'none' ? `border: ${gSelectorBg.border} !important;` : '');
 
         const styles = [];
         if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
@@ -201,10 +258,15 @@
         }
         const textStyleAttr = styles.length > 0 ? `style="${styles.join(' ')}"` : '';
 
+        const textAlign = gStyles.textAlign || 'left';
+        const lineAlignStyle = textAlign === 'center'
+          ? 'justify-content: center !important;'
+          : (textAlign === 'right' ? 'justify-content: flex-end !important;' : 'justify-content: flex-start !important;');
+
         const tagHTML = showTags ? `<span class="sc-vol-tag">${SC.escapeHtml(tag)}</span>` : '';
         const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
-          <div class="sc-vol-line sc-vol-track">
+          <div class="sc-vol-line sc-vol-track" style="${lineAlignStyle}">
             ${tagHTML}
             <span class="sc-vol-text" ${textStyleAttr}>${trackText ? SC.escapeHtml(trackText) : spinnerHTML}</span>
           </div>
@@ -231,15 +293,19 @@
         
         // Background resolution: selectorBg from global styles vs individual background override
         const isBgEnabled = itemSt.bgEnabled !== undefined && itemSt.bgEnabled !== 'inherit'
-          ? itemSt.bgEnabled
+          ? (itemSt.bgEnabled === true || itemSt.bgEnabled === 'on')
           : Boolean(gSelectorBg.enabled);
         const effectiveBgColor = itemSt.bgColor && itemSt.bgColor !== 'inherit'
           ? itemSt.bgColor
           : (gSelectorBg.color || 'rgba(0, 0, 0, 0.75)');
-        const effectiveBgPaddingY = gSelectorBg.paddingY ?? 2;
-        const effectiveBgPaddingX = gSelectorBg.paddingX ?? 6;
+        const effectiveBgPaddingY = (itemSt.paddingY !== undefined && itemSt.paddingY !== 'inherit')
+          ? itemSt.paddingY
+          : (gSelectorBg.paddingY ?? 2);
+        const effectiveBgPaddingX = Math.round(effectiveBgPaddingY * 2.5);
         const effectiveBgBorderRadius = gSelectorBg.borderRadius ?? 4;
-        const effectiveBgBorder = gSelectorBg.border && gSelectorBg.border !== 'none' ? `border: ${gSelectorBg.border} !important;` : '';
+        const effectiveBgBorder = (itemSt.border && itemSt.border !== 'inherit')
+          ? (itemSt.border !== 'none' ? `border: ${itemSt.border} !important;` : '')
+          : (gSelectorBg.border && gSelectorBg.border !== 'none' ? `border: ${gSelectorBg.border} !important;` : '');
 
         const styles = [];
         if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
@@ -263,11 +329,16 @@
         }
         const textStyleAttr = styles.length > 0 ? `style="${styles.join(' ')}"` : '';
 
+        const textAlign = gStyles.textAlign || 'left';
+        const lineAlignStyle = textAlign === 'center'
+          ? 'justify-content: center !important;'
+          : (textAlign === 'right' ? 'justify-content: flex-end !important;' : 'justify-content: flex-start !important;');
+
         const tag = SC.getLangName(targetLang).slice(0, 3).toUpperCase();
         const tagHTML = showTags ? `<span class="sc-vol-tag">${tag}</span>` : '';
         const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
-          <div class="sc-vol-line sc-vol-trans">
+          <div class="sc-vol-line sc-vol-trans" style="${lineAlignStyle}">
             ${tagHTML}
             <span class="sc-vol-text" ${textStyleAttr}>${transText ? SC.escapeHtml(transText) : spinnerHTML}</span>
           </div>

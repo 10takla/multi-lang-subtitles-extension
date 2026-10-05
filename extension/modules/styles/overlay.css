@@ -149,3 +149,30 @@ svg.sc-loading-spinner {
   }
 }
 
+/* Block resize effect skeleton (ai_instrs/_.md:15, 25-26) */
+.sc-overlay-skeleton {
+  position: fixed !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+  border: 2px dashed #60a5fa !important;
+  background: rgba(96, 165, 250, 0.16) !important;
+  border-radius: 8px !important;
+  z-index: 2147483645 !important;
+  transition: width 0.05s ease, height 0.05s ease, opacity 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #93c5fd !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  opacity: 0;
+}
+
+.sc-overlay-skeleton.sc-skeleton-active {
+  opacity: 1 !important;
+}
+
+.sc-overlay-skeleton.sc-hidden {
+  display: none !important;
+}
+

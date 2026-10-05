@@ -87,41 +87,6 @@
   background: rgba(96, 165, 250, 0.08);
 }
 
-.sc-lang-arrows {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 0 0 auto;
-}
-
-.sc-lang-arrow-btn {
-  background: transparent;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  padding: 0;
-  width: 12px;
-  height: 9px;
-  font-size: 7px;
-  line-height: 9px;
-  color: var(--sc-text-dim, #64748b);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  transition: all 0.1s ease;
-}
-
-.sc-lang-arrow-btn:hover:not(:disabled) {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.sc-lang-arrow-btn:disabled {
-  opacity: 0.2;
-  cursor: default;
-}
-
 .sc-lang-vis {
   background: transparent;
   border: none;
@@ -312,9 +277,15 @@
   transition: color 0.15s ease, background 0.15s ease;
 }
 
-.sc-btn-mini:hover {
+.sc-btn-mini:hover:not(:disabled) {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.12);
+}
+
+.sc-btn-mini:disabled {
+  opacity: 0.2;
+  cursor: default;
+  pointer-events: none;
 }
 
 .sc-btn-add-lang {
