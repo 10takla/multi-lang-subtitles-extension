@@ -72,7 +72,6 @@
   gap: 6px !important;
   width: 100% !important;
   line-height: 1.35 !important;
-  text-align: left !important;
 }
 
 .sc-vol-tag {
@@ -108,7 +107,6 @@
   color: #ffffff;
   word-break: break-word !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-  text-align: left !important;
 }
 
 /* Loading Spinner Indicator (ai_instrs/_.md:48) */
