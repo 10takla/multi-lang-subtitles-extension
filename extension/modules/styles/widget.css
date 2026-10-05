@@ -274,3 +274,75 @@
 .sc-launcher-btn.sc-hidden {
   display: none !important;
 }
+
+/* Mobile Adaptation (Firefox Android / screens <= 600px) */
+@media (max-width: 600px) {
+  .sc-widget {
+    width: min(560px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 20px);
+    border-radius: 8px;
+    touch-action: pan-y;
+  }
+
+  .sc-header {
+    padding: 6px 8px;
+    min-height: 38px;
+    touch-action: none;
+  }
+
+  .sc-title-area {
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .sc-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .sc-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+
+  .sc-subtitles-toggle-wrap {
+    padding: 1px 3px;
+    margin-right: 2px;
+  }
+
+  .sc-subtitles-toggle-label {
+    font-size: 10px;
+  }
+
+  .sc-switch {
+    width: 26px;
+    height: 14px;
+  }
+
+  .sc-switch-slider:before {
+    height: 10px;
+    width: 10px;
+    left: 2px;
+    bottom: 2px;
+  }
+
+  .sc-switch input:checked + .sc-switch-slider:before {
+    transform: translateX(12px);
+  }
+
+  .sc-btn-icon {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    font-size: 11px;
+  }
+
+  .sc-launcher-btn {
+    bottom: 16px;
+    right: 16px;
+    height: 36px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+}

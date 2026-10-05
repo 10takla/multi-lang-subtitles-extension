@@ -238,3 +238,33 @@
   background: #2563eb;
   color: #ffffff;
 }
+
+/* Mobile Adaptation (Firefox Android / screens <= 600px) */
+@media (max-width: 600px) {
+  .sc-styles-panel {
+    padding: 6px 8px;
+    max-height: calc(100vh - 120px);
+    border-top: none;
+  }
+
+  .sc-embedded-style-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .sc-style-field {
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .sc-style-label {
+    font-size: 10px;
+    min-width: 70px;
+  }
+
+  .sc-style-input,
+  .sc-style-select {
+    height: 22px;
+    font-size: 10px;
+  }
+}

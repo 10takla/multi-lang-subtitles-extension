@@ -386,3 +386,94 @@
   background: rgba(255, 255, 255, 0.12);
   transform: scale(1.08);
 }
+
+/* Mobile Adaptation (Firefox Android / screens <= 600px) */
+@media (max-width: 600px) {
+  .sc-lang-bar {
+    padding: 6px 8px;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .sc-lang-list {
+    max-height: 140px;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
+  .sc-lang-item {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    padding: 3px 6px;
+    gap: 4px;
+    min-width: max-content;
+    white-space: nowrap;
+  }
+
+  .sc-lang-controls {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    gap: 4px;
+    flex: 1 0 auto;
+  }
+
+  .sc-lang-select {
+    height: 22px;
+    font-size: 10px;
+    padding: 1px 3px;
+  }
+
+  .sc-source-select,
+  .sc-track-select {
+    min-width: 70px;
+    flex: 1 1 auto;
+  }
+
+  .sc-mode-select {
+    font-size: 9px;
+    flex: 0 0 auto;
+  }
+
+  .sc-source-from-select,
+  .sc-target-lang-select {
+    min-width: 60px;
+    flex: 1 1 auto;
+  }
+
+  .sc-engine-select {
+    min-width: 50px;
+    font-size: 9px;
+    flex: 0 0 auto;
+  }
+
+  .sc-buffer-wrap {
+    height: 22px;
+    padding: 0 3px;
+    flex: 0 0 auto;
+  }
+
+  .sc-buffer-input {
+    width: 30px;
+    font-size: 10px !important;
+  }
+
+  .sc-btn-add-lang {
+    height: 24px;
+    flex: 0 0 24px;
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  /* Replace sub-list when styles panel is open (hide language bar) */
+  .sc-widget:has(#sc-styles-panel:not(.sc-hidden)) .sc-lang-bar {
+    display: none !important;
+  }
+}
+

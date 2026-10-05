@@ -146,3 +146,44 @@
   font-size: 10px;
   margin-left: 1px;
 }
+
+/* Mobile Adaptation (Firefox Android / screens <= 600px) */
+@media (max-width: 600px) {
+  .sc-pos-bar {
+    flex-wrap: nowrap !important;
+    padding: 4px 8px;
+    gap: 6px;
+    font-size: 10px;
+    touch-action: none;
+  }
+
+  .sc-pos-label {
+    font-size: 10px;
+  }
+
+  .sc-pos-item {
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .sc-pos-axis {
+    font-size: 10px;
+  }
+
+  .sc-pos-slider {
+    height: 16px;
+    touch-action: none;
+  }
+
+  .sc-pos-input-wrap {
+    height: 18px;
+    padding: 0 2px;
+  }
+
+  .sc-pos-input {
+    width: 22px;
+    font-size: 10px !important;
+  }
+}
+
