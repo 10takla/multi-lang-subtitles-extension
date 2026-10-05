@@ -36,7 +36,9 @@
         bgEnabled: 'inherit',
         bgColor: 'inherit',
         border: 'inherit',
-        paddingY: 'inherit'
+        padding: 'inherit',
+        paddingY: 'inherit',
+        paddingX: 'inherit'
       };
     }
     const st = item.style;
@@ -50,7 +52,10 @@
       <div class="sc-embedded-style-card">
         <div class="sc-embedded-style-header">
           <span class="sc-embedded-style-title">⚙ Стили строки: ${SC.escapeHtml(item.label || item.lang || 'Селектор')}</span>
-          <button type="button" class="sc-btn-icon" id="sc-style-embed-close" title="Закрыть">✕</button>
+          <div class="sc-embedded-style-actions">
+            <button type="button" class="sc-btn-icon" id="sc-style-reset" title="Сбросить в Inherit">↺</button>
+            <button type="button" class="sc-btn-icon" id="sc-style-embed-close" title="Закрыть">✕</button>
+          </div>
         </div>
         <div class="sc-embedded-style-grid">
           <!-- 1. Выбор шрифта (ai_instrs/_.md:45) -->
@@ -150,17 +155,12 @@
             <div class="sc-style-field">
               <label class="sc-style-label">Отступ:</label>
               <div class="sc-style-size-row">
-                <input type="range" class="sc-style-range" id="sc-style-bg-pad" min="0" max="16" value="${st.paddingY === 'inherit' ? (gSelBg.paddingY ?? 2) : (st.paddingY ?? 2)}">
-                <span class="sc-style-val" id="sc-style-bg-pad-val">${st.paddingY === 'inherit' ? 'Inherit' : `${st.paddingY ?? 2}px`}</span>
+                <input type="range" class="sc-style-range" id="sc-style-bg-pad" min="0" max="16" value="${(st.padding !== undefined && st.padding !== 'inherit') ? st.padding : (st.paddingY !== undefined && st.paddingY !== 'inherit') ? st.paddingY : (gSelBg.padding ?? gSelBg.paddingY ?? 4)}">
+                <span class="sc-style-val" id="sc-style-bg-pad-val">${(st.padding === 'inherit' || (st.padding === undefined && st.paddingY === 'inherit')) ? 'Inherit' : `${st.padding ?? st.paddingY ?? 4}px`}</span>
                 <button type="button" class="sc-style-btn-reset" id="sc-style-pad-inherit-btn" style="padding: 0 4px; font-size: 9px;">Inh</button>
               </div>
             </div>
           </div>
-        </div>
-
-        <div class="sc-embedded-style-footer">
-          <button type="button" class="sc-style-btn-reset" id="sc-style-reset">Сбросить в Inherit</button>
-          <button type="button" class="sc-style-btn-apply" id="sc-style-apply">Закрыть</button>
         </div>
       </div>
     `;
@@ -252,7 +252,9 @@
         bgSubgroup.classList.remove('sc-hidden');
         st.bgColor = bgColorInput.value + 'cc';
         st.border = bgBorderSel.value;
-        st.paddingY = parseInt(bgPadSlider.value, 10) || 2;
+        st.padding = parseInt(bgPadSlider.value, 10) || 4;
+        st.paddingY = st.padding;
+        st.paddingX = st.padding;
       } else if (bgModeSel.value === 'off') {
         st.bgEnabled = false;
         bgSubgroup.classList.add('sc-hidden');
@@ -280,15 +282,19 @@
     });
 
     bgPadSlider.addEventListener('input', () => {
-      st.paddingY = parseInt(bgPadSlider.value, 10) || 2;
-      bgPadVal.textContent = `${st.paddingY}px`;
+      st.padding = parseInt(bgPadSlider.value, 10) || 0;
+      st.paddingY = st.padding;
+      st.paddingX = st.padding;
+      bgPadVal.textContent = `${st.padding}px`;
       triggerStyleUpdate();
     });
 
     padInheritBtn.addEventListener('click', () => {
+      st.padding = 'inherit';
       st.paddingY = 'inherit';
+      st.paddingX = 'inherit';
       bgPadVal.textContent = 'Inherit';
-      bgPadSlider.value = gSelBg.paddingY ?? 2;
+      bgPadSlider.value = gSelBg.padding ?? gSelBg.paddingY ?? 4;
       triggerStyleUpdate();
     });
 
@@ -303,7 +309,9 @@
         bgEnabled: 'inherit',
         bgColor: 'inherit',
         border: 'inherit',
-        paddingY: 'inherit'
+        padding: 'inherit',
+        paddingY: 'inherit',
+        paddingX: 'inherit'
       };
       presetSel.value = 'inherit';
       fontSel.value = 'inherit';
@@ -324,7 +332,6 @@
     };
 
     panel.querySelector('#sc-style-embed-close').addEventListener('click', closePanel);
-    panel.querySelector('#sc-style-apply').addEventListener('click', closePanel);
   };
 
   // Embedded Accordion Panel for global subtitle styles (ai_instrs/_.md:11-26)
@@ -345,8 +352,8 @@
     panel.dataset.activeItem = 'global';
 
     const gStyles = SC.state.globalStyles = SC.state.globalStyles || {};
-    const subListBg = gStyles.subListBg = gStyles.subListBg || { enabled: true, color: 'rgba(12, 15, 20, 0.86)', border: '1px solid rgba(255, 255, 255, 0.2)', paddingY: 6, paddingX: 14, borderRadius: 8 };
-    const selectorBg = gStyles.selectorBg = gStyles.selectorBg || { enabled: false, color: 'rgba(0, 0, 0, 0.75)', border: 'none', paddingY: 2, paddingX: 6, borderRadius: 4 };
+    const subListBg = gStyles.subListBg = gStyles.subListBg || { enabled: true, color: 'rgba(12, 15, 20, 0.86)', border: '1px solid rgba(255, 255, 255, 0.2)', padding: 6, paddingY: 6, paddingX: 6, borderRadius: 8 };
+    const selectorBg = gStyles.selectorBg = gStyles.selectorBg || { enabled: false, color: 'rgba(0, 0, 0, 0.75)', border: 'none', padding: 4, paddingY: 4, paddingX: 4, borderRadius: 4 };
     const gFont = gStyles.font = gStyles.font || { preset: 'base', fontFamily: 'inherit', fontWeight: 'normal', fontStyle: 'normal', fontSizePercent: 100, textColor: '#ffffff' };
     const maxWidthPct = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 100;
     const textAlignVal = gStyles.textAlign || 'left';
@@ -355,7 +362,10 @@
       <div class="sc-embedded-style-card">
         <div class="sc-embedded-style-header">
           <span class="sc-embedded-style-title">🎨 Общие стили субтитров</span>
-          <button type="button" class="sc-btn-icon" id="sc-gstyle-embed-close" title="Закрыть">✕</button>
+          <div class="sc-embedded-style-actions">
+            <button type="button" class="sc-btn-icon" id="sc-gstyle-reset" title="Сбросить">↺</button>
+            <button type="button" class="sc-btn-icon" id="sc-gstyle-embed-close" title="Закрыть">✕</button>
+          </div>
         </div>
         <div class="sc-embedded-style-grid">
           <!-- 1. Подложка текста суб-списка (ai_instrs/_.md:12) -->
@@ -387,8 +397,8 @@
             <div class="sc-style-field">
               <label class="sc-style-label">Отступ:</label>
               <div class="sc-style-size-row">
-                <input type="range" class="sc-style-range" id="sc-gstyle-sublist-pad" min="0" max="24" value="${subListBg.paddingY}">
-                <span class="sc-style-val" id="sc-gstyle-sublist-pad-val">${subListBg.paddingY}px</span>
+                <input type="range" class="sc-style-range" id="sc-gstyle-sublist-pad" min="0" max="24" value="${subListBg.padding ?? subListBg.paddingY ?? 6}">
+                <span class="sc-style-val" id="sc-gstyle-sublist-pad-val">${subListBg.padding ?? subListBg.paddingY ?? 6}px</span>
               </div>
             </div>
           </div>
@@ -421,8 +431,8 @@
             <div class="sc-style-field">
               <label class="sc-style-label">Отступ:</label>
               <div class="sc-style-size-row">
-                <input type="range" class="sc-style-range" id="sc-gstyle-sel-pad" min="0" max="16" value="${selectorBg.paddingY ?? 2}">
-                <span class="sc-style-val" id="sc-gstyle-sel-pad-val">${selectorBg.paddingY ?? 2}px</span>
+                <input type="range" class="sc-style-range" id="sc-gstyle-sel-pad" min="0" max="16" value="${selectorBg.padding ?? selectorBg.paddingY ?? 4}">
+                <span class="sc-style-val" id="sc-gstyle-sel-pad-val">${selectorBg.padding ?? selectorBg.paddingY ?? 4}px</span>
               </div>
             </div>
           </div>
@@ -505,11 +515,6 @@
             <input type="color" class="sc-style-color-input" id="sc-gstyle-color" value="${gFont.textColor || '#ffffff'}">
           </div>
         </div>
-
-        <div class="sc-embedded-style-footer">
-          <button type="button" class="sc-style-btn-reset" id="sc-gstyle-reset">Сбросить</button>
-          <button type="button" class="sc-style-btn-apply" id="sc-gstyle-apply">Закрыть</button>
-        </div>
       </div>
     `;
 
@@ -547,17 +552,19 @@
       sublistFields.classList.toggle('sc-hidden', !subListBg.enabled);
       subListBg.color = sublistColor.value + 'db';
       subListBg.border = sublistBorder.value;
-      subListBg.paddingY = parseInt(sublistPad.value, 10);
-      subListBg.paddingX = Math.round(subListBg.paddingY * 2.3);
-      sublistPadVal.textContent = `${subListBg.paddingY}px`;
+      subListBg.padding = parseInt(sublistPad.value, 10);
+      subListBg.paddingY = subListBg.padding;
+      subListBg.paddingX = subListBg.padding;
+      sublistPadVal.textContent = `${subListBg.padding}px`;
 
       selectorBg.enabled = selCheck.checked;
       selFields.classList.toggle('sc-hidden', !selectorBg.enabled);
       selectorBg.color = selColor.value + 'cc';
       selectorBg.border = selBorder.value;
-      selectorBg.paddingY = parseInt(selPad.value, 10);
-      selectorBg.paddingX = Math.round(selectorBg.paddingY * 2.5);
-      selPadVal.textContent = `${selectorBg.paddingY}px`;
+      selectorBg.padding = parseInt(selPad.value, 10);
+      selectorBg.paddingY = selectorBg.padding;
+      selectorBg.paddingX = selectorBg.padding;
+      selPadVal.textContent = `${selectorBg.padding}px`;
 
       gStyles.lineGap = parseInt(gapRange.value, 10);
       gapVal.textContent = `${gStyles.lineGap}px`;
@@ -652,8 +659,8 @@
 
     panel.querySelector('#sc-gstyle-reset').addEventListener('click', () => {
       SC.state.globalStyles = {
-        subListBg: { enabled: true, color: 'rgba(12, 15, 20, 0.86)', border: '1px solid rgba(255, 255, 255, 0.2)', paddingY: 6, paddingX: 14, borderRadius: 8 },
-        selectorBg: { enabled: false, color: 'rgba(0, 0, 0, 0.75)', border: 'none', paddingY: 2, paddingX: 6, borderRadius: 4 },
+        subListBg: { enabled: true, color: 'rgba(12, 15, 20, 0.86)', border: '1px solid rgba(255, 255, 255, 0.2)', padding: 6, paddingY: 6, paddingX: 6, borderRadius: 8 },
+        selectorBg: { enabled: false, color: 'rgba(0, 0, 0, 0.75)', border: 'none', padding: 4, paddingY: 4, paddingX: 4, borderRadius: 4 },
         lineGap: 3,
         maxWidthPercent: 100,
         textAlign: 'left',
@@ -672,6 +679,5 @@
     };
 
     panel.querySelector('#sc-gstyle-embed-close').addEventListener('click', closePanel);
-    panel.querySelector('#sc-gstyle-apply').addEventListener('click', closePanel);
   };
 })();

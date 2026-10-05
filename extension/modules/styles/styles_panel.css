@@ -118,13 +118,10 @@
   color: #94a3b8;
 }
 
-.sc-embedded-style-footer {
+.sc-embedded-style-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+  gap: 4px;
 }
 
 .sc-style-btn-reset {
@@ -132,29 +129,16 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #94a3b8;
   border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 11px;
+  padding: 2px 6px;
+  font-size: 10px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .sc-style-btn-reset:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
-}
-
-.sc-style-btn-apply {
-  background: var(--sc-primary-blue, #1877f2);
-  border: none;
-  color: #ffffff;
-  border-radius: 4px;
-  padding: 4px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.sc-style-btn-apply:hover {
-  background: var(--sc-primary-blue-hover, #166fe5);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 @keyframes sc-slide-down {

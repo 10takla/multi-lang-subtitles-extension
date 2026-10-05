@@ -277,16 +277,18 @@
         enabled: true,
         color: 'rgba(12, 15, 20, 0.86)',
         border: '1px solid rgba(255, 255, 255, 0.2)',
+        padding: 6,
         paddingY: 6,
-        paddingX: 14,
+        paddingX: 6,
         borderRadius: 8
       },
       selectorBg: {
         enabled: false,
         color: 'rgba(0, 0, 0, 0.75)',
         border: 'none',
-        paddingY: 2,
-        paddingX: 6,
+        padding: 4,
+        paddingY: 4,
+        paddingX: 4,
         borderRadius: 4
       },
       lineGap: 3,

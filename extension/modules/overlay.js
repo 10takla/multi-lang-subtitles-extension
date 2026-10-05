@@ -125,9 +125,10 @@
     }
 
     if (subListBg.enabled) {
+      const subPad = (subListBg.padding !== undefined) ? subListBg.padding : (subListBg.paddingY ?? 6);
       SC.overlayEl.style.background = subListBg.color || 'rgba(12, 15, 20, 0.86)';
       SC.overlayEl.style.border = subListBg.border || '1px solid rgba(255, 255, 255, 0.2)';
-      SC.overlayEl.style.padding = `${subListBg.paddingY ?? 6}px ${subListBg.paddingX ?? 14}px`;
+      SC.overlayEl.style.padding = `${subPad}px`;
       SC.overlayEl.style.borderRadius = `${subListBg.borderRadius ?? 8}px`;
       SC.overlayEl.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.6)';
     } else {
@@ -227,10 +228,11 @@
         const effectiveBgColor = itemSt.bgColor && itemSt.bgColor !== 'inherit'
           ? itemSt.bgColor
           : (gSelectorBg.color || 'rgba(0, 0, 0, 0.75)');
-        const effectiveBgPaddingY = (itemSt.paddingY !== undefined && itemSt.paddingY !== 'inherit')
-          ? itemSt.paddingY
-          : (gSelectorBg.paddingY ?? 2);
-        const effectiveBgPaddingX = Math.round(effectiveBgPaddingY * 2.5);
+        const effectiveBgPadding = (itemSt.padding !== undefined && itemSt.padding !== 'inherit')
+          ? itemSt.padding
+          : (itemSt.paddingY !== undefined && itemSt.paddingY !== 'inherit')
+            ? itemSt.paddingY
+            : ((gSelectorBg.padding !== undefined) ? gSelectorBg.padding : (gSelectorBg.paddingY ?? 4));
         const effectiveBgBorderRadius = gSelectorBg.borderRadius ?? 4;
         const effectiveBgBorder = (itemSt.border && itemSt.border !== 'inherit')
           ? (itemSt.border !== 'none' ? `border: ${itemSt.border} !important;` : '')
@@ -253,7 +255,7 @@
         }
         if (isBgEnabled) {
           styles.push(`background-color: ${effectiveBgColor} !important;`);
-          styles.push(`padding: ${effectiveBgPaddingY}px ${effectiveBgPaddingX}px !important; border-radius: ${effectiveBgBorderRadius}px !important;`);
+          styles.push(`padding: ${effectiveBgPadding}px !important; border-radius: ${effectiveBgBorderRadius}px !important;`);
           if (effectiveBgBorder) styles.push(effectiveBgBorder);
         }
         const textStyleAttr = styles.length > 0 ? `style="${styles.join(' ')}"` : '';
@@ -298,10 +300,11 @@
         const effectiveBgColor = itemSt.bgColor && itemSt.bgColor !== 'inherit'
           ? itemSt.bgColor
           : (gSelectorBg.color || 'rgba(0, 0, 0, 0.75)');
-        const effectiveBgPaddingY = (itemSt.paddingY !== undefined && itemSt.paddingY !== 'inherit')
-          ? itemSt.paddingY
-          : (gSelectorBg.paddingY ?? 2);
-        const effectiveBgPaddingX = Math.round(effectiveBgPaddingY * 2.5);
+        const effectiveBgPadding = (itemSt.padding !== undefined && itemSt.padding !== 'inherit')
+          ? itemSt.padding
+          : (itemSt.paddingY !== undefined && itemSt.paddingY !== 'inherit')
+            ? itemSt.paddingY
+            : ((gSelectorBg.padding !== undefined) ? gSelectorBg.padding : (gSelectorBg.paddingY ?? 4));
         const effectiveBgBorderRadius = gSelectorBg.borderRadius ?? 4;
         const effectiveBgBorder = (itemSt.border && itemSt.border !== 'inherit')
           ? (itemSt.border !== 'none' ? `border: ${itemSt.border} !important;` : '')
@@ -324,7 +327,7 @@
         }
         if (isBgEnabled) {
           styles.push(`background-color: ${effectiveBgColor} !important;`);
-          styles.push(`padding: ${effectiveBgPaddingY}px ${effectiveBgPaddingX}px !important; border-radius: ${effectiveBgBorderRadius}px !important;`);
+          styles.push(`padding: ${effectiveBgPadding}px !important; border-radius: ${effectiveBgBorderRadius}px !important;`);
           if (effectiveBgBorder) styles.push(effectiveBgBorder);
         }
         const textStyleAttr = styles.length > 0 ? `style="${styles.join(' ')}"` : '';
