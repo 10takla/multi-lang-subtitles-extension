@@ -4,13 +4,11 @@
   position: fixed !important;
   pointer-events: auto !important;
   box-sizing: border-box !important;
-  background: var(--sc-bg-overlay, rgba(12, 15, 20, 0.86)) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
-  padding: 6px 14px !important;
+  background: var(--sc-bg-overlay, rgba(12, 15, 20, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  padding: 6px 14px;
   display: flex !important;
   flex-direction: column !important;
   gap: 4px !important;
@@ -35,7 +33,7 @@
 .sc-video-overlay-lines {
   display: flex !important;
   flex-direction: column !important;
-  gap: 3px !important;
+  gap: var(--sc-overlay-gap, 3px) !important;
   width: fit-content !important;
   max-width: 100% !important;
   margin: 0 auto !important;
@@ -46,7 +44,7 @@
 .sc-video-overlay-lines.sc-with-tags {
   display: grid !important;
   grid-template-columns: max-content 1fr !important;
-  row-gap: 3px !important;
+  row-gap: var(--sc-overlay-gap, 3px) !important;
   column-gap: 8px !important;
   align-items: baseline !important;
   width: fit-content !important;
@@ -105,15 +103,12 @@
 }
 
 .sc-vol-text {
-  font-weight: 500 !important;
-  color: #ffffff !important;
+  display: inline-block;
+  font-weight: 500;
+  color: #ffffff;
   word-break: break-word !important;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   text-align: left !important;
-}
-
-.sc-vol-trans .sc-vol-text {
-  color: #e0f2fe !important;
 }
 
 /* Loading Spinner Indicator (ai_instrs/_.md:48) */

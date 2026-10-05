@@ -58,6 +58,7 @@
         "modules/capturers/render/hardsub/index.js",
         "modules/capturers.js",
         "modules/overlay.js",
+        "modules/style_panel.js",
         "modules/widget.js",
         "modules/cross_frame.js",
         "modules/popup_bridge.js",

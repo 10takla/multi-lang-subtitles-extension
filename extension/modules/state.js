@@ -269,9 +269,37 @@
     overlayPosY: 90, // 0-100% Y position (ai_instrs/_.md:27)
     currentActiveLine: null,
     overlayFadeTimeout: null,
-    activeVideo: null,
     showLanguageTags: false, // Default off (ai_instrs/_.md:26)
-    subtitlesEnabled: true // Master toggle for subtitles display
+    subtitlesEnabled: true, // Master toggle for subtitles display
+    // Общие стили (ai_instrs/_.md:22-30)
+    globalStyles: {
+      subListBg: {
+        enabled: true,
+        color: 'rgba(12, 15, 20, 0.86)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        paddingY: 6,
+        paddingX: 14,
+        borderRadius: 8
+      },
+      selectorBg: {
+        enabled: false,
+        color: 'rgba(0, 0, 0, 0.75)',
+        border: 'none',
+        paddingY: 2,
+        paddingX: 6,
+        borderRadius: 4
+      },
+      lineGap: 3,
+      font: {
+        preset: 'base', // 'base' | 'netflix' | 'youtube' | 'custom'
+        fontFamily: 'inherit',
+        fontWeight: 'normal',
+        fontStyle: 'normal',
+        fontSizePercent: 100,
+        textColor: '#ffffff',
+        textShadow: '0 1px 3px rgba(0, 0, 0, 0.9)'
+      }
+    }
   };
 
   SC.MAX_LINES = 250;

@@ -4,9 +4,8 @@
 .sc-subtitles-toggle-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
   margin-right: 4px;
-  padding: 2px 7px;
+  padding: 2px 4px;
   background: rgba(255, 255, 255, 0.07);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -131,19 +130,74 @@
   border-color: var(--sc-accent-blue, #60a5fa);
 }
 
+.sc-lang-order-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
 .sc-lang-drag {
   cursor: grab;
   color: var(--sc-text-dim, #64748b);
   font-size: 13px;
   line-height: 1;
-  padding: 0;
+  padding: 2px;
+  border-radius: 3px;
   width: 14px;
   flex: 0 0 14px;
   text-align: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.sc-lang-drag:hover,
+.sc-lang-drag.sc-drag-active {
+  color: var(--sc-accent-blue, #60a5fa);
+  background: rgba(96, 165, 250, 0.15);
 }
 
 .sc-lang-drag:active {
   cursor: grabbing;
+}
+
+.sc-lang-item.sc-toggle-drag-selected {
+  outline: 1px dashed var(--sc-accent-blue, #60a5fa);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.sc-lang-arrows {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+.sc-lang-arrow-btn {
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  width: 12px;
+  height: 9px;
+  font-size: 7px;
+  line-height: 9px;
+  color: var(--sc-text-dim, #64748b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  transition: all 0.1s ease;
+}
+
+.sc-lang-arrow-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sc-lang-arrow-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
 }
 
 .sc-lang-vis {
@@ -503,4 +557,28 @@
   color: var(--sc-text-muted, #94a3b8);
   font-size: 10px;
   margin-left: 1px;
+}
+
+/* Individual Style Button & Modal */
+.sc-lang-style-btn {
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  font-size: 12px;
+  color: var(--sc-text-muted, #94a3b8);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sc-lang-style-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.08);
 }

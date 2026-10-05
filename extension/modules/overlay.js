@@ -61,6 +61,29 @@
     SC.overlayEl.style.fontSize = `${dynamicFontSize}px`;
     SC.overlayEl.style.maxWidth = `${Math.round(vRect.width * 0.92)}px`;
 
+    // Apply global sub-list background and gap (ai_instrs/_.md:12-14)
+    const gStyles = SC.state.globalStyles || {};
+    const subListBg = gStyles.subListBg || {};
+    const linesContainer = SC.shadowRoot?.getElementById('sc-video-overlay-lines');
+    if (linesContainer) {
+      const lineGap = gStyles.lineGap !== undefined ? `${gStyles.lineGap}px` : '3px';
+      linesContainer.style.setProperty('--sc-overlay-gap', lineGap);
+      linesContainer.style.gap = lineGap;
+    }
+
+    if (subListBg.enabled) {
+      SC.overlayEl.style.background = subListBg.color || 'rgba(12, 15, 20, 0.86)';
+      SC.overlayEl.style.border = subListBg.border || '1px solid rgba(255, 255, 255, 0.2)';
+      SC.overlayEl.style.padding = `${subListBg.paddingY ?? 6}px ${subListBg.paddingX ?? 14}px`;
+      SC.overlayEl.style.borderRadius = `${subListBg.borderRadius ?? 8}px`;
+      SC.overlayEl.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.6)';
+    } else {
+      SC.overlayEl.style.background = 'transparent';
+      SC.overlayEl.style.border = 'none';
+      SC.overlayEl.style.boxShadow = 'none';
+      SC.overlayEl.style.padding = '0';
+    }
+
     const oW = SC.overlayEl.offsetWidth || 260;
     const oH = SC.overlayEl.offsetHeight || 50;
 
@@ -131,12 +154,59 @@
         } else if (item.trackId && item.trackId.startsWith('yt:')) {
           tag = item.trackId.replace('yt:', '').slice(0, 4).toUpperCase();
         }
+        // Resolve effective style: inherit from globalStyles or use individual override (ai_instrs/_.md:22-42)
+        const gStyles = SC.state.globalStyles || {};
+        const gFont = gStyles.font || {};
+        const gSelectorBg = gStyles.selectorBg || {};
+        const itemSt = item.style || {};
+
+        const effectivePreset = itemSt.preset && itemSt.preset !== 'inherit' ? itemSt.preset : (gFont.preset || 'base');
+        const effectiveFont = itemSt.fontFamily && itemSt.fontFamily !== 'inherit' ? itemSt.fontFamily : (gFont.fontFamily || 'inherit');
+        const effectiveWeight = itemSt.fontWeight && itemSt.fontWeight !== 'inherit' ? itemSt.fontWeight : (gFont.fontWeight || 'normal');
+        const effectiveStyle = itemSt.fontStyle && itemSt.fontStyle !== 'inherit' ? itemSt.fontStyle : (gFont.fontStyle || 'normal');
+        const effectiveSizePct = itemSt.fontSizePercent && itemSt.fontSizePercent !== 'inherit' ? itemSt.fontSizePercent : (gFont.fontSizePercent || 100);
+        const effectiveColor = itemSt.textColor && itemSt.textColor !== 'inherit' ? itemSt.textColor : (gFont.textColor || '#ffffff');
+        
+        // Background resolution: selectorBg from global styles vs individual background override
+        const isBgEnabled = itemSt.bgEnabled !== undefined && itemSt.bgEnabled !== 'inherit'
+          ? itemSt.bgEnabled
+          : Boolean(gSelectorBg.enabled);
+        const effectiveBgColor = itemSt.bgColor && itemSt.bgColor !== 'inherit'
+          ? itemSt.bgColor
+          : (gSelectorBg.color || 'rgba(0, 0, 0, 0.75)');
+        const effectiveBgPaddingY = gSelectorBg.paddingY ?? 2;
+        const effectiveBgPaddingX = gSelectorBg.paddingX ?? 6;
+        const effectiveBgBorderRadius = gSelectorBg.borderRadius ?? 4;
+        const effectiveBgBorder = gSelectorBg.border && gSelectorBg.border !== 'none' ? `border: ${gSelectorBg.border} !important;` : '';
+
+        const styles = [];
+        if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
+        if (effectiveWeight && effectiveWeight !== 'normal') styles.push(`font-weight: ${effectiveWeight} !important;`);
+        if (effectiveStyle && effectiveStyle !== 'normal') styles.push(`font-style: ${effectiveStyle} !important;`);
+        if (effectiveSizePct && effectiveSizePct !== 100) {
+          styles.push(`font-size: ${Math.round(dynamicFontSize * effectiveSizePct / 100)}px !important;`);
+        }
+        if (effectiveColor) styles.push(`color: ${effectiveColor} !important;`);
+        if (effectivePreset === 'netflix') {
+          styles.push(`text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 2px #000, -1px -1px 2px #000 !important;`);
+        } else if (itemSt.textShadow) {
+          styles.push(`text-shadow: ${itemSt.textShadow} !important;`);
+        } else if (gFont.textShadow) {
+          styles.push(`text-shadow: ${gFont.textShadow} !important;`);
+        }
+        if (isBgEnabled) {
+          styles.push(`background-color: ${effectiveBgColor} !important;`);
+          styles.push(`padding: ${effectiveBgPaddingY}px ${effectiveBgPaddingX}px !important; border-radius: ${effectiveBgBorderRadius}px !important;`);
+          if (effectiveBgBorder) styles.push(effectiveBgBorder);
+        }
+        const textStyleAttr = styles.length > 0 ? `style="${styles.join(' ')}"` : '';
+
         const tagHTML = showTags ? `<span class="sc-vol-tag">${SC.escapeHtml(tag)}</span>` : '';
         const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
           <div class="sc-vol-line sc-vol-track">
             ${tagHTML}
-            <span class="sc-vol-text">${trackText ? SC.escapeHtml(trackText) : spinnerHTML}</span>
+            <span class="sc-vol-text" ${textStyleAttr}>${trackText ? SC.escapeHtml(trackText) : spinnerHTML}</span>
           </div>
         `);
       } else {
@@ -146,13 +216,60 @@
           : null;
         if (transText !== null && !transText.trim()) return;
 
+        // Resolve effective style: inherit from globalStyles or use individual override (ai_instrs/_.md:22-42)
+        const gStyles = SC.state.globalStyles || {};
+        const gFont = gStyles.font || {};
+        const gSelectorBg = gStyles.selectorBg || {};
+        const itemSt = item.style || {};
+
+        const effectivePreset = itemSt.preset && itemSt.preset !== 'inherit' ? itemSt.preset : (gFont.preset || 'base');
+        const effectiveFont = itemSt.fontFamily && itemSt.fontFamily !== 'inherit' ? itemSt.fontFamily : (gFont.fontFamily || 'inherit');
+        const effectiveWeight = itemSt.fontWeight && itemSt.fontWeight !== 'inherit' ? itemSt.fontWeight : (gFont.fontWeight || 'normal');
+        const effectiveStyle = itemSt.fontStyle && itemSt.fontStyle !== 'inherit' ? itemSt.fontStyle : (gFont.fontStyle || 'normal');
+        const effectiveSizePct = itemSt.fontSizePercent && itemSt.fontSizePercent !== 'inherit' ? itemSt.fontSizePercent : (gFont.fontSizePercent || 100);
+        const effectiveColor = itemSt.textColor && itemSt.textColor !== 'inherit' ? itemSt.textColor : (gFont.textColor || '#ffffff');
+        
+        // Background resolution: selectorBg from global styles vs individual background override
+        const isBgEnabled = itemSt.bgEnabled !== undefined && itemSt.bgEnabled !== 'inherit'
+          ? itemSt.bgEnabled
+          : Boolean(gSelectorBg.enabled);
+        const effectiveBgColor = itemSt.bgColor && itemSt.bgColor !== 'inherit'
+          ? itemSt.bgColor
+          : (gSelectorBg.color || 'rgba(0, 0, 0, 0.75)');
+        const effectiveBgPaddingY = gSelectorBg.paddingY ?? 2;
+        const effectiveBgPaddingX = gSelectorBg.paddingX ?? 6;
+        const effectiveBgBorderRadius = gSelectorBg.borderRadius ?? 4;
+        const effectiveBgBorder = gSelectorBg.border && gSelectorBg.border !== 'none' ? `border: ${gSelectorBg.border} !important;` : '';
+
+        const styles = [];
+        if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
+        if (effectiveWeight && effectiveWeight !== 'normal') styles.push(`font-weight: ${effectiveWeight} !important;`);
+        if (effectiveStyle && effectiveStyle !== 'normal') styles.push(`font-style: ${effectiveStyle} !important;`);
+        if (effectiveSizePct && effectiveSizePct !== 100) {
+          styles.push(`font-size: ${Math.round(dynamicFontSize * effectiveSizePct / 100)}px !important;`);
+        }
+        if (effectiveColor) styles.push(`color: ${effectiveColor} !important;`);
+        if (effectivePreset === 'netflix') {
+          styles.push(`text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 2px #000, -1px -1px 2px #000 !important;`);
+        } else if (itemSt.textShadow) {
+          styles.push(`text-shadow: ${itemSt.textShadow} !important;`);
+        } else if (gFont.textShadow) {
+          styles.push(`text-shadow: ${gFont.textShadow} !important;`);
+        }
+        if (isBgEnabled) {
+          styles.push(`background-color: ${effectiveBgColor} !important;`);
+          styles.push(`padding: ${effectiveBgPaddingY}px ${effectiveBgPaddingX}px !important; border-radius: ${effectiveBgBorderRadius}px !important;`);
+          if (effectiveBgBorder) styles.push(effectiveBgBorder);
+        }
+        const textStyleAttr = styles.length > 0 ? `style="${styles.join(' ')}"` : '';
+
         const tag = SC.getLangName(targetLang).slice(0, 3).toUpperCase();
         const tagHTML = showTags ? `<span class="sc-vol-tag">${tag}</span>` : '';
         const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
           <div class="sc-vol-line sc-vol-trans">
             ${tagHTML}
-            <span class="sc-vol-text">${transText ? SC.escapeHtml(transText) : spinnerHTML}</span>
+            <span class="sc-vol-text" ${textStyleAttr}>${transText ? SC.escapeHtml(transText) : spinnerHTML}</span>
           </div>
         `);
       }

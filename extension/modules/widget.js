@@ -549,12 +549,12 @@
         </div>
         <div class="sc-header-actions">
           <div class="sc-subtitles-toggle-wrap" id="sc-toggle-subtitles-wrap" title="Субтитры: Вкл">
-            <span class="sc-subtitles-toggle-label" id="sc-toggle-subtitles-label">Вкл</span>
             <label class="sc-switch">
               <input type="checkbox" id="sc-toggle-subtitles" checked>
               <span class="sc-switch-slider"></span>
             </label>
           </div>
+          <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
           <button class="sc-btn-icon" id="sc-btn-font-dec" title="Уменьшить шрифт">A-</button>
           <button class="sc-btn-icon" id="sc-btn-font-inc" title="Увеличить шрифт">A+</button>
@@ -568,6 +568,9 @@
         <div class="sc-lang-list" id="sc-lang-list"></div>
         <button class="sc-btn-add-lang" id="sc-btn-add-lang" title="Добавить новый селектор языка">+ Добавить селектор языка</button>
       </div>
+
+      <!-- Embedded Styles Accordion Panel (Вариант 2: прямо внутри панели управления) -->
+      <div class="sc-styles-panel sc-hidden" id="sc-styles-panel"></div>
 
       <!-- Subtitle position sliders with input (ai_instrs/_.md:24) -->
       <div class="sc-pos-bar" id="sc-pos-bar">
@@ -688,14 +691,27 @@
         }
       });
 
-      // Drag handle with pointer events for mobile touch support
+      // Drag and order controls (ai_instrs/_.md:23-26)
+      const orderControls = document.createElement('div');
+      orderControls.className = 'sc-lang-order-wrap';
+
+      // Element for grab and toggle drag
       const dragHandle = document.createElement('span');
       dragHandle.className = 'sc-lang-drag';
-      dragHandle.title = 'Перетащите для изменения порядка';
+      dragHandle.title = 'Зажмите для перетаскивания (или клик для переключения режима перетаскивания)';
       dragHandle.textContent = '⠿';
       dragHandle.style.touchAction = 'none';
 
       let isPointerDragging = false;
+      let toggleDragActive = false;
+
+      dragHandle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleDragActive = !toggleDragActive;
+        dragHandle.classList.toggle('sc-drag-active', toggleDragActive);
+        row.classList.toggle('sc-toggle-drag-selected', toggleDragActive);
+      });
+
       dragHandle.addEventListener('pointerdown', (e) => {
         isPointerDragging = true;
         row.classList.add('sc-dragging');
@@ -724,10 +740,53 @@
       };
       dragHandle.addEventListener('pointerup', endPointerDrag);
       dragHandle.addEventListener('pointercancel', endPointerDrag);
-      row.appendChild(dragHandle);
+      orderControls.appendChild(dragHandle);
+
+      // Up / Down arrow buttons for order change
+      const arrowsWrap = document.createElement('div');
+      arrowsWrap.className = 'sc-lang-arrows';
+
+      const btnUp = document.createElement('button');
+      btnUp.type = 'button';
+      btnUp.className = 'sc-lang-arrow-btn sc-lang-arrow-up';
+      btnUp.title = 'Переместить вверх';
+      btnUp.textContent = '▲';
+      btnUp.disabled = index === 0;
+      btnUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (index > 0) {
+          const moved = SC.state.languages.splice(index, 1)[0];
+          SC.state.languages.splice(index - 1, 0, moved);
+          SC.renderLanguageList();
+          SC.renderAllLines();
+        }
+      });
+
+      const btnDown = document.createElement('button');
+      btnDown.type = 'button';
+      btnDown.className = 'sc-lang-arrow-btn sc-lang-arrow-down';
+      btnDown.title = 'Переместить вниз';
+      btnDown.textContent = '▼';
+      btnDown.disabled = index === SC.state.languages.length - 1;
+      btnDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (index < SC.state.languages.length - 1) {
+          const moved = SC.state.languages.splice(index, 1)[0];
+          SC.state.languages.splice(index + 1, 0, moved);
+          SC.renderLanguageList();
+          SC.renderAllLines();
+        }
+      });
+
+      arrowsWrap.appendChild(btnUp);
+      arrowsWrap.appendChild(btnDown);
+      orderControls.appendChild(arrowsWrap);
+
+      row.appendChild(orderControls);
 
       // Visibility toggle button (ai_instrs/_.md)
       const visBtn = document.createElement('button');
+      visBtn.type = 'button';
       visBtn.className = `sc-lang-vis ${item.visible ? '' : 'sc-hidden-vis'}`;
       visBtn.title = item.visible ? 'Скрыть этот язык' : 'Показать этот язык';
       visBtn.textContent = item.visible ? '👁' : '⊘';
@@ -737,6 +796,18 @@
         SC.renderAllLines();
       });
       row.appendChild(visBtn);
+
+      // Styles button for current language selector (ai_instrs/_.md)
+      const styleBtn = document.createElement('button');
+      styleBtn.type = 'button';
+      styleBtn.className = 'sc-lang-style-btn';
+      styleBtn.title = 'Стили текста субтитра для этого языка';
+      styleBtn.textContent = '🎨';
+      styleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        SC.openLangStyleModal(item);
+      });
+      row.appendChild(styleBtn);
 
       // Controls container
       const controls = document.createElement('div');
@@ -1069,6 +1140,14 @@
     const inputX = shadow.getElementById('sc-input-x');
     const inputY = shadow.getElementById('sc-input-y');
     const langTagsBtn = shadow.getElementById('sc-btn-lang-tags');
+    const globalStylesBtn = shadow.getElementById('sc-btn-global-styles');
+
+    // Global subtitle styles modal (ai_instrs/_.md:22-30)
+    if (globalStylesBtn) {
+      globalStylesBtn.addEventListener('click', () => {
+        if (SC.openGlobalStylesModal) SC.openGlobalStylesModal();
+      });
+    }
 
     // Add language selector (ai_instrs/_.md)
     if (addLangBtn) {
