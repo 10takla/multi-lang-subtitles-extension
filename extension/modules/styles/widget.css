@@ -243,6 +243,36 @@
   transform: translate(-50%, -50%) scale(1);
 }
 
+/* Preset Controls in Header (ai_instrs/_.md:41-46) */
+.sc-preset-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 1px 3px;
+  height: 24px;
+}
+
+.sc-preset-select {
+  background: transparent;
+  color: #f1f5f9;
+  border: none;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  max-width: 110px;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+}
+
+.sc-preset-select option {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
 /* Launcher Button */
 .sc-launcher-btn {
   position: fixed;

@@ -225,7 +225,11 @@
               <span class="sc-switch-slider"></span>
             </label>
           </div>
-          <button class="sc-btn-icon" id="sc-btn-save-defaults" title="Сохранить настройки как глобальные по умолчанию (для всех новых сайтов)">💾</button>
+          <div class="sc-preset-wrap" title="Глобальные пресеты">
+            <select class="sc-preset-select" id="sc-preset-select" title="Выбор пресета"></select>
+            <button type="button" class="sc-btn-icon" id="sc-btn-save-preset" title="Сохранить в текущий пресет">💾</button>
+            <button type="button" class="sc-btn-icon" id="sc-btn-add-preset" title="Создать новый именованный пресет">➕</button>
+          </div>
           <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
           <button class="sc-btn-icon" id="sc-btn-minimize" title="Свернуть">_</button>
@@ -587,14 +591,54 @@
       });
     }
 
-    // Save settings as global defaults button (ai_instrs/_.md:41)
-    const saveDefaultsBtn = shadow.getElementById('sc-btn-save-defaults');
-    if (saveDefaultsBtn) {
-      saveDefaultsBtn.addEventListener('click', () => {
+    // Preset dropdown and buttons (ai_instrs/_.md:41-46)
+    const presetSelect = shadow.getElementById('sc-preset-select');
+    const savePresetBtn = shadow.getElementById('sc-btn-save-preset');
+    const addPresetBtn = shadow.getElementById('sc-btn-add-preset');
+
+    SC.updatePresetDropdown = async function(selectPresetId = null) {
+      if (!presetSelect) return;
+      const presets = SC.getPresets ? await SC.getPresets() : {};
+      const currentSelected = selectPresetId || presetSelect.value || SC.DEFAULT_PRESET_ID;
+
+      presetSelect.innerHTML = '';
+      Object.values(presets).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        if (p.id === currentSelected) opt.selected = true;
+        presetSelect.appendChild(opt);
+      });
+    };
+
+    if (presetSelect) {
+      presetSelect.addEventListener('change', async (e) => {
+        const chosenId = e.target.value;
+        if (SC.applyPresetToCurrentSite) {
+          await SC.applyPresetToCurrentSite(chosenId);
+        }
+      });
+      if (SC.updatePresetDropdown) SC.updatePresetDropdown();
+    }
+
+    if (savePresetBtn) {
+      savePresetBtn.addEventListener('click', async () => {
+        const activePresetId = presetSelect ? presetSelect.value : SC.DEFAULT_PRESET_ID;
         if (SC.saveCurrentSettingsAsGlobalDefaults) {
-          SC.saveCurrentSettingsAsGlobalDefaults().then(() => {
-            showStatus('Настройки сохранены по умолчанию');
-          });
+          await SC.saveCurrentSettingsAsGlobalDefaults(activePresetId);
+        }
+      });
+    }
+
+    if (addPresetBtn) {
+      addPresetBtn.addEventListener('click', async () => {
+        const name = window.prompt('Введите название нового пресета:');
+        if (!name || !name.trim()) return;
+        const newId = `preset_${Date.now()}`;
+        if (SC.savePreset) {
+          await SC.savePreset(newId, name.trim(), SC.exportConfigurableSettings ? SC.exportConfigurableSettings(true) : null);
+          if (SC.updatePresetDropdown) await SC.updatePresetDropdown(newId);
+          showStatus(`Создан пресет: ${name.trim()}`);
         }
       });
     }
