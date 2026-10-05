@@ -10,8 +10,32 @@
   SC.overlayEl = null;
   SC.videoResizeObserver = null;
 
-  // Initialize overlay element inside Shadow DOM
-  SC.initOverlay = function(shadowRoot) {
+  // Keep subtitles outside the control panel's maximum-z-index stacking context.
+  SC.syncOverlayLayer = function(video) {
+    const host = SC.overlayHostEl;
+    if (!host || !video?.parentNode || video.ownerDocument !== document) return;
+    if (host.parentNode !== video.parentNode || video.nextSibling !== host) {
+      video.parentNode.insertBefore(host, video.nextSibling);
+    }
+    // Match the video's level; later player controls remain above the subtitles.
+    const z = getComputedStyle(video).zIndex;
+    host.style.setProperty('--sc-video-layer', z === 'auto' ? '0' : z);
+  };
+
+  // Initialize an independent Shadow DOM next to the active video.
+  SC.initOverlay = function(panelShadow) {
+    const host = document.createElement('div');
+    host.id = 'subtitles-capturer-overlay-host';
+    const shadowRoot = host.attachShadow({ mode: 'open' });
+    for (const style of panelShadow.querySelectorAll('link[rel="stylesheet"], style')) {
+      shadowRoot.appendChild(style.cloneNode(true));
+    }
+    const layerStyle = document.createElement('style');
+    layerStyle.textContent = ':host { display: contents !important; position: static !important; z-index: auto !important; pointer-events: none !important; } .sc-hidden { display: none !important; }';
+    shadowRoot.appendChild(layerStyle);
+    SC.overlayHostEl = host;
+    SC.overlayShadowRoot = shadowRoot;
+    (document.body || document.documentElement).appendChild(host);
     const overlay = document.createElement('div');
     overlay.className = 'sc-video-overlay sc-hidden';
     overlay.id = 'sc-video-overlay';
@@ -44,6 +68,7 @@
     if (!SC.overlaySkeletonEl) return;
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
     if (!video || !document.contains(video)) return;
+    SC.syncOverlayLayer(video);
     const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
     if (vRect.width < 50 || vRect.height < 50) return;
 
@@ -86,6 +111,7 @@
       return;
     }
 
+    SC.syncOverlayLayer(video);
     const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
     if (vRect.width < 50 || vRect.height < 50 || vRect.bottom < 0 || vRect.top > window.innerHeight) {
       SC.overlayEl.classList.add('sc-hidden');
@@ -117,7 +143,7 @@
 
     // Apply global sub-list background and gap (ai_instrs/_.md:12-14)
     const subListBg = gStyles.subListBg || {};
-    const linesContainer = SC.shadowRoot?.getElementById('sc-video-overlay-lines');
+    const linesContainer = SC.overlayShadowRoot?.getElementById('sc-video-overlay-lines');
     if (linesContainer) {
       const lineGap = gStyles.lineGap !== undefined ? `${gStyles.lineGap}px` : '3px';
       linesContainer.style.setProperty('--sc-overlay-gap', lineGap);
@@ -170,8 +196,8 @@
 
   // Render content of active subtitle line on video overlay
   SC.updateVideoOverlayContent = function() {
-    if (!SC.overlayEl || !SC.shadowRoot) return;
-    const linesContainer = SC.shadowRoot.getElementById('sc-video-overlay-lines');
+    if (!SC.overlayEl || !SC.overlayShadowRoot) return;
+    const linesContainer = SC.overlayShadowRoot.getElementById('sc-video-overlay-lines');
     if (!linesContainer) return;
 
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');

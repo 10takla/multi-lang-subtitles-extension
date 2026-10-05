@@ -2,7 +2,7 @@
 
 .sc-video-overlay {
   position: fixed !important;
-  pointer-events: auto !important;
+  pointer-events: none !important;
   box-sizing: border-box !important;
   background: var(--sc-bg-overlay, rgba(12, 15, 20, 0.86));
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -15,10 +15,16 @@
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
-  z-index: 2147483646 !important;
+  z-index: var(--sc-video-layer, 0) !important;
   transition: opacity 0.15s ease;
   user-select: none !important;
   cursor: grab !important;
+}
+
+.sc-video-overlay .sc-video-overlay-lines,
+.sc-video-overlay .sc-vol-text,
+.sc-video-overlay .sc-vol-tag {
+  pointer-events: auto !important;
 }
 
 .sc-video-overlay.sc-locked {
@@ -167,7 +173,7 @@ svg.sc-loading-spinner {
   border: 2px dashed #60a5fa !important;
   background: rgba(96, 165, 250, 0.16) !important;
   border-radius: 8px !important;
-  z-index: 2147483645 !important;
+  z-index: var(--sc-video-layer, 0) !important;
   transition: width 0.05s ease, height 0.05s ease, opacity 0.2s ease !important;
   display: flex !important;
   align-items: center !important;
