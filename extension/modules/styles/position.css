@@ -20,6 +20,14 @@
   flex-shrink: 0;
 }
 
+.sc-pos-lock-btn {
+  flex-shrink: 0;
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  margin-right: -2px;
+}
+
 .sc-pos-item {
   display: flex;
   align-items: center;

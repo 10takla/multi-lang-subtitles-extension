@@ -44,6 +44,7 @@
     const container = SC.shadowRoot.getElementById('sc-lang-list');
     if (!container) return;
     container.innerHTML = '';
+    container.classList.toggle('sc-locked', Boolean(SC.state.moveLocked));
 
     const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
 
@@ -118,19 +119,21 @@
 
       dragHandle.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (SC.state.moveLocked) return;
         toggleDragActive = !toggleDragActive;
         dragHandle.classList.toggle('sc-drag-active', toggleDragActive);
         row.classList.toggle('sc-toggle-drag-selected', toggleDragActive);
       });
 
       dragHandle.addEventListener('pointerdown', (e) => {
+        if (SC.state.moveLocked) return;
         isPointerDragging = true;
         row.classList.add('sc-dragging');
         try { dragHandle.setPointerCapture(e.pointerId); } catch (_) {}
         e.stopPropagation();
       });
       dragHandle.addEventListener('pointermove', (e) => {
-        if (!isPointerDragging) return;
+        if (!isPointerDragging || SC.state.moveLocked) return;
         const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.sc-lang-item');
         if (targetEl && targetEl !== row && targetEl.dataset.index !== undefined) {
           const fromIdx = index;
@@ -173,10 +176,13 @@
         btnOrder.textContent = '⇅';
         btnOrder.disabled = true;
       }
+      if (SC.state.moveLocked) {
+        btnOrder.disabled = true;
+      }
 
       btnOrder.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (SC.state.languages.length <= 1) return;
+        if (SC.state.moveLocked || SC.state.languages.length <= 1) return;
         const moveUp = e.shiftKey ? true : (index === SC.state.languages.length - 1);
         if (moveUp && index > 0) {
           const moved = SC.state.languages.splice(index, 1)[0];

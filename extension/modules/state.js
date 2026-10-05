@@ -271,6 +271,7 @@
     overlayFadeTimeout: null,
     showLanguageTags: false, // Default off (ai_instrs/_.md:26)
     subtitlesEnabled: true, // Master toggle for subtitles display
+    moveLocked: true, // Блокировка перемещения мышью (по умолчанию вкл)
     // Общие стили (ai_instrs/_.md:22-30)
     globalStyles: {
       subListBg: {

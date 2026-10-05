@@ -246,8 +246,8 @@
 
         const styles = [];
         if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
-        if (effectiveWeight && effectiveWeight !== 'normal') styles.push(`font-weight: ${effectiveWeight} !important;`);
-        if (effectiveStyle && effectiveStyle !== 'normal') styles.push(`font-style: ${effectiveStyle} !important;`);
+        if (effectiveWeight) styles.push(`font-weight: ${effectiveWeight} !important;`);
+        if (effectiveStyle) styles.push(`font-style: ${effectiveStyle} !important;`);
         const lineFontSize = Math.round(dynamicFontSize * (effectiveSizePct / 100));
         styles.push(`font-size: ${lineFontSize}px !important;`);
         if (effectiveColor) styles.push(`color: ${effectiveColor} !important;`);
@@ -318,8 +318,8 @@
 
         const styles = [];
         if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
-        if (effectiveWeight && effectiveWeight !== 'normal') styles.push(`font-weight: ${effectiveWeight} !important;`);
-        if (effectiveStyle && effectiveStyle !== 'normal') styles.push(`font-style: ${effectiveStyle} !important;`);
+        if (effectiveWeight) styles.push(`font-weight: ${effectiveWeight} !important;`);
+        if (effectiveStyle) styles.push(`font-style: ${effectiveStyle} !important;`);
         const lineFontSize = Math.round(dynamicFontSize * (effectiveSizePct / 100));
         styles.push(`font-size: ${lineFontSize}px !important;`);
         if (effectiveColor) styles.push(`color: ${effectiveColor} !important;`);
@@ -372,6 +372,7 @@
     let startLeft = 0, startTop = 0;
 
     element.addEventListener('mousedown', (e) => {
+      if (SC.state.moveLocked) return;
       isDragging = true;
       startX = e.clientX;
       startY = e.clientY;

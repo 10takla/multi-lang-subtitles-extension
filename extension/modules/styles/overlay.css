@@ -21,6 +21,19 @@
   cursor: grab !important;
 }
 
+.sc-video-overlay.sc-locked {
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.sc-video-overlay.sc-locked .sc-vol-text,
+.sc-video-overlay.sc-locked .sc-video-overlay-lines {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+}
+
 .sc-video-overlay.sc-dragging {
   cursor: grabbing !important;
   opacity: 0.9 !important;
@@ -103,7 +116,6 @@
 
 .sc-vol-text {
   display: inline-block;
-  font-weight: 500;
   color: #ffffff;
   word-break: break-word !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);

@@ -191,14 +191,13 @@
       .sc-video-badge-btn svg { width: 18px !important; height: 18px !important; fill: currentColor !important; pointer-events: none !important; }
       .sc-video-badge-btn:hover { background: rgba(24, 119, 242, 0.95) !important; }
       .sc-video-badge-btn.sc-active { background: rgba(24, 119, 242, 0.95) !important; border-color: #60a5fa !important; color: #ffffff !important; }
-      .sc-subtitles-toggle-wrap { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; padding: 2px 7px; background: rgba(255, 255, 255, 0.07); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; user-select: none; }
-      .sc-subtitles-toggle-label { font-size: 11px; font-weight: 600; color: #e2e8f0; line-height: 1; }
-      .sc-switch { position: relative; display: inline-block; width: 26px; height: 14px; cursor: pointer; margin: 0; }
-      .sc-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-      .sc-switch-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(148, 163, 184, 0.35); border-radius: 14px; transition: 0.2s; }
-      .sc-switch-slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #fff; border-radius: 50%; transition: 0.2s; }
+      .sc-subtitles-toggle-wrap { display: inline-flex; align-items: center; justify-content: center; margin-right: 4px; padding: 2px 4px; background: rgba(255, 255, 255, 0.07); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; user-select: none; }
+      .sc-switch { position: relative; display: inline-block; width: 30px; height: 16px; cursor: pointer; margin: 0; }
+      .sc-switch input { opacity: 0; width: 100%; height: 100%; top: 0; left: 0; position: absolute; margin: 0; cursor: pointer; z-index: 2; }
+      .sc-switch-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(148, 163, 184, 0.35); border-radius: 14px; transition: 0.2s; pointer-events: none; }
+      .sc-switch-slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 2px; bottom: 2px; background-color: #fff; border-radius: 50%; transition: 0.2s; }
       .sc-switch input:checked + .sc-switch-slider { background-color: #1877f2; }
-      .sc-switch input:checked + .sc-switch-slider:before { transform: translateX(12px); }
+      .sc-switch input:checked + .sc-switch-slider:before { transform: translateX(14px); }
       .sc-vol-loading { display: inline-flex !important; align-items: center !important; justify-content: center !important; vertical-align: middle !important; line-height: 1 !important; color: #93c5fd !important; }
       .sc-loading-spinner { display: inline-block !important; width: 1em !important; height: 1em !important; box-sizing: border-box !important; vertical-align: middle !important; animation: sc-spin 0.8s linear infinite !important; }
       span.sc-loading-spinner { border: 2px solid rgba(255, 255, 255, 0.25) !important; border-top-color: #60a5fa !important; border-radius: 50% !important; }
@@ -228,8 +227,6 @@
           </div>
           <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
-          <button class="sc-btn-icon" id="sc-btn-font-dec" title="Уменьшить шрифт">A-</button>
-          <button class="sc-btn-icon" id="sc-btn-font-inc" title="Увеличить шрифт">A+</button>
           <button class="sc-btn-icon" id="sc-btn-minimize" title="Свернуть">_</button>
           <button class="sc-btn-icon" id="sc-btn-close" title="Скрыть панель">✕</button>
         </div>
@@ -246,7 +243,7 @@
 
       <!-- Subtitle position sliders with input (ai_instrs/_.md:24) -->
       <div class="sc-pos-bar" id="sc-pos-bar">
-        <span class="sc-pos-label">Позиция:</span>
+        <button class="sc-btn-icon sc-pos-lock-btn active" id="sc-btn-lock-drag" title="Блокировка перемещения: Вкл (по умолчанию)">🔒</button>
         <div class="sc-pos-item">
           <span class="sc-pos-axis">X</span>
           <input type="range" class="sc-pos-slider" id="sc-slider-x" min="0" max="100" value="50" title="Позиционирование субтитров X (0-100%)">
@@ -324,8 +321,6 @@
     const closeBtn = shadow.getElementById('sc-btn-close');
     const clearBtn = shadow.getElementById('sc-btn-clear');
     const copyAllBtn = shadow.getElementById('sc-btn-copy-all');
-    const fontIncBtn = shadow.getElementById('sc-btn-font-inc');
-    const fontDecBtn = shadow.getElementById('sc-btn-font-dec');
     const addLangBtn = shadow.getElementById('sc-btn-add-lang');
     const sliderX = shadow.getElementById('sc-slider-x');
     const sliderY = shadow.getElementById('sc-slider-y');
@@ -356,24 +351,6 @@
         SC.state.autoScroll = !SC.state.autoScroll;
         autoScrollBtn.classList.toggle('active', SC.state.autoScroll);
         if (SC.state.autoScroll && SC.scrollListToBottom) SC.scrollListToBottom();
-      });
-    }
-
-    // Font size adjustments
-    if (fontIncBtn) {
-      fontIncBtn.addEventListener('click', () => {
-        if (SC.state.fontSize < 22) {
-          SC.state.fontSize += 1;
-          SC.applyFontSize();
-        }
-      });
-    }
-    if (fontDecBtn) {
-      fontDecBtn.addEventListener('click', () => {
-        if (SC.state.fontSize > 10) {
-          SC.state.fontSize -= 1;
-          SC.applyFontSize();
-        }
       });
     }
 
@@ -533,6 +510,9 @@
     const toggleSubtitles = shadow.getElementById('sc-toggle-subtitles');
     const toggleWrap = shadow.getElementById('sc-toggle-subtitles-wrap');
     const toggleLabel = shadow.getElementById('sc-toggle-subtitles-label');
+    const lockDragBtn = shadow.getElementById('sc-btn-lock-drag');
+    const headerEl = shadow.getElementById('sc-header');
+
     if (toggleSubtitles) {
       const updateToggleUI = () => {
         const isEnabled = SC.state.subtitlesEnabled !== false;
@@ -554,6 +534,34 @@
         } else {
           if (SC.overlayEl) SC.overlayEl.classList.add('sc-hidden');
         }
+      });
+
+      if (toggleWrap) {
+        toggleWrap.addEventListener('pointerdown', (e) => e.stopPropagation());
+        toggleWrap.addEventListener('mousedown', (e) => e.stopPropagation());
+      }
+    }
+
+    // Move-lock toggle button (ai_instrs/_.md:11)
+    if (lockDragBtn) {
+      const updateLockUI = () => {
+        const isLocked = Boolean(SC.state.moveLocked);
+        lockDragBtn.textContent = isLocked ? '🔒' : '🔓';
+        lockDragBtn.title = isLocked
+          ? 'Блокировка перемещения: Вкл (по умолчанию)'
+          : 'Блокировка перемещения: Выкл';
+        lockDragBtn.classList.toggle('active', isLocked);
+        if (SC.overlayEl) {
+          SC.overlayEl.classList.toggle('sc-locked', isLocked);
+        }
+      };
+      updateLockUI();
+
+      lockDragBtn.addEventListener('click', () => {
+        SC.state.moveLocked = !SC.state.moveLocked;
+        updateLockUI();
+        if (SC.renderLanguageList) SC.renderLanguageList();
+        showStatus(SC.state.moveLocked ? 'Перемещение заблокировано' : 'Перемещение разблокировано');
       });
     }
 
@@ -577,7 +585,8 @@
         toast = document.createElement('div');
         toast.id = 'sc-toast';
         toast.className = 'sc-toast';
-        if (SC.widgetEl) SC.widgetEl.appendChild(toast);
+        if (headerEl) headerEl.appendChild(toast);
+        else if (SC.widgetEl) SC.widgetEl.appendChild(toast);
         else shadow.appendChild(toast);
       }
       toast.textContent = text;
@@ -620,7 +629,7 @@
     let initialLeft = 0, initialTop = 0;
 
     handle.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('button, select, input, a')) return;
+      if (e.target.closest('button, select, input, a, label, .sc-switch, .sc-subtitles-toggle-wrap')) return;
       const video = SC.getActiveVideo ? SC.getActiveVideo() : null;
       if (!video) return;
 
