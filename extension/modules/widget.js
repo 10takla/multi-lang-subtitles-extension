@@ -235,7 +235,7 @@
       <!-- Multi-language selection bar -->
       <div class="sc-lang-bar" id="sc-lang-bar">
         <div class="sc-lang-list" id="sc-lang-list"></div>
-        <button class="sc-btn-add-lang" id="sc-btn-add-lang" title="Добавить новый селектор языка">+ Добавить селектор языка</button>
+        <button class="sc-btn-add-lang" id="sc-btn-add-lang" title="Добавить язык">+ Добавить язык</button>
       </div>
 
       <!-- Embedded Styles Accordion Panel -->

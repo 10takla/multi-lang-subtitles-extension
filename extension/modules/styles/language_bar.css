@@ -61,14 +61,15 @@
 
 .sc-lang-drag {
   cursor: grab;
-  color: var(--sc-text-dim, #64748b);
-  font-size: 13px;
+  color: #ffffff !important;
+  font-size: 14px;
   line-height: 1;
   padding: 2px;
   border-radius: 3px;
   width: 14px;
   flex: 0 0 14px;
   text-align: center;
+  opacity: 1 !important;
   transition: color 0.15s ease, background 0.15s ease;
 }
 
@@ -84,12 +85,14 @@
 
 .sc-lang-list.sc-locked .sc-lang-drag {
   cursor: default !important;
-  opacity: 0.3 !important;
+  opacity: 1 !important;
+  color: #ffffff !important;
   pointer-events: none !important;
 }
 
 .sc-lang-list.sc-locked .sc-btn-order {
-  opacity: 0.2 !important;
+  opacity: 1 !important;
+  color: #ffffff !important;
   pointer-events: none !important;
   cursor: default !important;
 }
@@ -114,8 +117,9 @@
   width: 22px;
   height: 22px;
   flex: 0 0 22px;
-  font-size: 12px;
-  color: var(--sc-text-muted, #94a3b8);
+  font-size: 14px;
+  color: #ffffff !important;
+  opacity: 1 !important;
   border-radius: 4px;
   display: inline-flex;
   align-items: center;
@@ -279,19 +283,26 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--sc-text-dim, #64748b);
+  color: #ffffff !important;
   cursor: pointer;
   padding: 0;
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
-  font-size: 11px;
+  font-size: 12px;
   border-radius: 3px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  opacity: 1 !important;
   transition: color 0.15s ease, background 0.15s ease;
+}
+
+.sc-btn-order {
+  color: #ffffff !important;
+  font-size: 13px !important;
+  opacity: 1 !important;
 }
 
 .sc-btn-mini:hover:not(:disabled) {

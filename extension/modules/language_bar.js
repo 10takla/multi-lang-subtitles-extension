@@ -157,44 +157,43 @@
       orderControls.appendChild(dragHandle);
 
       // Single up/down/up-down arrow button for order change (ai_instrs/_.md:43)
-      const btnOrder = document.createElement('button');
-      btnOrder.type = 'button';
-      btnOrder.className = 'sc-btn-mini sc-btn-order';
-      const isFirst = index === 0;
-      const isLast = index === SC.state.languages.length - 1;
+      if (SC.state.languages.length > 1) {
+        const btnOrder = document.createElement('button');
+        btnOrder.type = 'button';
+        btnOrder.className = 'sc-btn-mini sc-btn-order';
+        const isFirst = index === 0;
+        const isLast = index === SC.state.languages.length - 1;
 
-      if (isFirst && !isLast) {
-        btnOrder.textContent = '▼';
-        btnOrder.title = 'Переместить вниз';
-      } else if (isLast && !isFirst) {
-        btnOrder.textContent = '▲';
-        btnOrder.title = 'Переместить вверх';
-      } else if (!isFirst && !isLast) {
-        btnOrder.textContent = '⇅';
-        btnOrder.title = 'Переместить (клик: вниз, Shift+клик: вверх)';
-      } else {
-        btnOrder.textContent = '⇅';
-        btnOrder.disabled = true;
-      }
-      if (SC.state.moveLocked) {
-        btnOrder.disabled = true;
-      }
-
-      btnOrder.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (SC.state.moveLocked || SC.state.languages.length <= 1) return;
-        const moveUp = e.shiftKey ? true : (index === SC.state.languages.length - 1);
-        if (moveUp && index > 0) {
-          const moved = SC.state.languages.splice(index, 1)[0];
-          SC.state.languages.splice(index - 1, 0, moved);
-        } else if (!moveUp && index < SC.state.languages.length - 1) {
-          const moved = SC.state.languages.splice(index, 1)[0];
-          SC.state.languages.splice(index + 1, 0, moved);
+        if (isFirst && !isLast) {
+          btnOrder.textContent = '▼';
+          btnOrder.title = 'Переместить вниз';
+        } else if (isLast && !isFirst) {
+          btnOrder.textContent = '▲';
+          btnOrder.title = 'Переместить вверх';
+        } else {
+          btnOrder.textContent = '⇅';
+          btnOrder.title = 'Переместить (клик: вниз, Shift+клик: вверх)';
         }
-        SC.renderLanguageList();
-        if (SC.renderAllLines) SC.renderAllLines();
-      });
-      orderControls.appendChild(btnOrder);
+        if (SC.state.moveLocked) {
+          btnOrder.disabled = true;
+        }
+
+        btnOrder.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (SC.state.moveLocked || SC.state.languages.length <= 1) return;
+          const moveUp = e.shiftKey ? true : (index === SC.state.languages.length - 1);
+          if (moveUp && index > 0) {
+            const moved = SC.state.languages.splice(index, 1)[0];
+            SC.state.languages.splice(index - 1, 0, moved);
+          } else if (!moveUp && index < SC.state.languages.length - 1) {
+            const moved = SC.state.languages.splice(index, 1)[0];
+            SC.state.languages.splice(index + 1, 0, moved);
+          }
+          SC.renderLanguageList();
+          if (SC.renderAllLines) SC.renderAllLines();
+        });
+        orderControls.appendChild(btnOrder);
+      }
 
       row.appendChild(orderControls);
 
