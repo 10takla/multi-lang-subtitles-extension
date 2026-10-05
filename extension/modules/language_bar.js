@@ -77,122 +77,169 @@
 
       const row = document.createElement('div');
       row.className = 'sc-lang-item';
-      row.draggable = true;
       row.dataset.index = index;
+      if (SC._activeToggleDragIndex === index) {
+        row.classList.add('sc-toggle-drag-selected');
+      }
 
-      // Drag & Drop reordering
-      row.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', String(index));
-        row.classList.add('sc-dragging');
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('sc-dragging');
-      });
+      // Drag & Drop drop target reordering
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      });
+      row.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        row.classList.add('sc-drag-over');
+      });
+      row.addEventListener('dragleave', (e) => {
+        if (!row.contains(e.relatedTarget)) {
+          row.classList.remove('sc-drag-over');
+        }
       });
       row.addEventListener('drop', (e) => {
         e.preventDefault();
+        row.classList.remove('sc-drag-over');
         const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
         const toIdx = index;
         if (!isNaN(fromIdx) && fromIdx !== toIdx) {
           const moved = SC.state.languages.splice(fromIdx, 1)[0];
           SC.state.languages.splice(toIdx, 0, moved);
+          SC._activeToggleDragIndex = null;
           SC.renderLanguageList();
           if (SC.renderAllLines) SC.renderAllLines();
         }
       });
 
-      // Drag and order controls (ai_instrs/_.md:23-26)
+      // Drag and order controls (ai_instrs/_.md:48-51)
       const orderControls = document.createElement('div');
       orderControls.className = 'sc-lang-order-wrap';
 
-      // Element for grab and toggle drag
+      // Element for grab and toggle drag (ai_instrs/_.md:49)
       const dragHandle = document.createElement('span');
       dragHandle.className = 'sc-lang-drag';
       dragHandle.title = 'Зажмите для перетаскивания (или клик для переключения режима перетаскивания)';
       dragHandle.textContent = '⠿';
-      dragHandle.style.touchAction = 'none';
+      dragHandle.draggable = true;
+      if (SC._activeToggleDragIndex === index) {
+        dragHandle.classList.add('sc-drag-active');
+      }
 
-      let isPointerDragging = false;
-      let toggleDragActive = false;
+      dragHandle.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', String(index));
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('sc-dragging');
+        if (e.dataTransfer.setDragImage) {
+          try {
+            e.dataTransfer.setDragImage(row, 15, 15);
+          } catch (_) {}
+        }
+      });
+
+      dragHandle.addEventListener('dragend', () => {
+        row.classList.remove('sc-dragging');
+        container.querySelectorAll('.sc-lang-item').forEach(el => el.classList.remove('sc-drag-over'));
+      });
 
       dragHandle.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (SC.state.moveLocked) return;
-        toggleDragActive = !toggleDragActive;
-        dragHandle.classList.toggle('sc-drag-active', toggleDragActive);
-        row.classList.toggle('sc-toggle-drag-selected', toggleDragActive);
-      });
 
-      dragHandle.addEventListener('pointerdown', (e) => {
-        if (SC.state.moveLocked) return;
-        isPointerDragging = true;
-        row.classList.add('sc-dragging');
-        try { dragHandle.setPointerCapture(e.pointerId); } catch (_) {}
-        e.stopPropagation();
-      });
-      dragHandle.addEventListener('pointermove', (e) => {
-        if (!isPointerDragging || SC.state.moveLocked) return;
-        const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.sc-lang-item');
-        if (targetEl && targetEl !== row && targetEl.dataset.index !== undefined) {
-          const fromIdx = index;
-          const toIdx = parseInt(targetEl.dataset.index, 10);
-          if (!isNaN(toIdx) && fromIdx !== toIdx) {
-            const moved = SC.state.languages.splice(fromIdx, 1)[0];
-            SC.state.languages.splice(toIdx, 0, moved);
-            SC.renderLanguageList();
-            if (SC.renderAllLines) SC.renderAllLines();
-          }
+        if (SC._activeToggleDragIndex !== null && SC._activeToggleDragIndex !== undefined && SC._activeToggleDragIndex !== index) {
+          const fromIdx = SC._activeToggleDragIndex;
+          const toIdx = index;
+          SC._activeToggleDragIndex = null;
+          const moved = SC.state.languages.splice(fromIdx, 1)[0];
+          SC.state.languages.splice(toIdx, 0, moved);
+          SC.renderLanguageList();
+          if (SC.renderAllLines) SC.renderAllLines();
+          return;
+        }
+
+        if (SC._activeToggleDragIndex === index) {
+          SC._activeToggleDragIndex = null;
+          dragHandle.classList.remove('sc-drag-active');
+          row.classList.remove('sc-toggle-drag-selected');
+        } else {
+          SC._activeToggleDragIndex = index;
+          SC.renderLanguageList();
         }
       });
-      const endPointerDrag = (e) => {
-        if (!isPointerDragging) return;
-        isPointerDragging = false;
-        row.classList.remove('sc-dragging');
-        try { dragHandle.releasePointerCapture(e.pointerId); } catch (_) {}
-      };
-      dragHandle.addEventListener('pointerup', endPointerDrag);
-      dragHandle.addEventListener('pointercancel', endPointerDrag);
       orderControls.appendChild(dragHandle);
 
-      // Single up/down/up-down arrow button for order change (ai_instrs/_.md:43)
+      // Order arrows: single full-size button for first (▼) and last (▲), two separate arrows (▲/▼) for middle (ai_instrs/_.md:51)
       if (SC.state.languages.length > 1) {
-        const btnOrder = document.createElement('button');
-        btnOrder.type = 'button';
-        btnOrder.className = 'sc-btn-mini sc-btn-order';
         const isFirst = index === 0;
         const isLast = index === SC.state.languages.length - 1;
 
         if (isFirst && !isLast) {
-          btnOrder.textContent = '▼';
-          btnOrder.title = 'Переместить вниз';
+          const btnDown = document.createElement('button');
+          btnDown.type = 'button';
+          btnDown.className = 'sc-btn-mini sc-btn-order';
+          btnDown.textContent = '▼';
+          btnDown.title = 'Переместить вниз';
+          btnDown.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (index < SC.state.languages.length - 1) {
+              const moved = SC.state.languages.splice(index, 1)[0];
+              SC.state.languages.splice(index + 1, 0, moved);
+              SC.renderLanguageList();
+              if (SC.renderAllLines) SC.renderAllLines();
+            }
+          });
+          orderControls.appendChild(btnDown);
         } else if (isLast && !isFirst) {
-          btnOrder.textContent = '▲';
-          btnOrder.title = 'Переместить вверх';
+          const btnUp = document.createElement('button');
+          btnUp.type = 'button';
+          btnUp.className = 'sc-btn-mini sc-btn-order';
+          btnUp.textContent = '▲';
+          btnUp.title = 'Переместить вверх';
+          btnUp.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (index > 0) {
+              const moved = SC.state.languages.splice(index, 1)[0];
+              SC.state.languages.splice(index - 1, 0, moved);
+              SC.renderLanguageList();
+              if (SC.renderAllLines) SC.renderAllLines();
+            }
+          });
+          orderControls.appendChild(btnUp);
         } else {
-          btnOrder.textContent = '⇅';
-          btnOrder.title = 'Переместить (клик: вниз, Shift+клик: вверх)';
-        }
-        if (SC.state.moveLocked) {
-          btnOrder.disabled = true;
-        }
+          const arrowsWrap = document.createElement('div');
+          arrowsWrap.className = 'sc-order-arrows';
 
-        btnOrder.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (SC.state.moveLocked || SC.state.languages.length <= 1) return;
-          const moveUp = e.shiftKey ? true : (index === SC.state.languages.length - 1);
-          if (moveUp && index > 0) {
-            const moved = SC.state.languages.splice(index, 1)[0];
-            SC.state.languages.splice(index - 1, 0, moved);
-          } else if (!moveUp && index < SC.state.languages.length - 1) {
-            const moved = SC.state.languages.splice(index, 1)[0];
-            SC.state.languages.splice(index + 1, 0, moved);
-          }
-          SC.renderLanguageList();
-          if (SC.renderAllLines) SC.renderAllLines();
-        });
-        orderControls.appendChild(btnOrder);
+          const btnUp = document.createElement('button');
+          btnUp.type = 'button';
+          btnUp.className = 'sc-btn-arrow sc-btn-arrow-up';
+          btnUp.textContent = '▲';
+          btnUp.title = 'Переместить вверх';
+          btnUp.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (index > 0) {
+              const moved = SC.state.languages.splice(index, 1)[0];
+              SC.state.languages.splice(index - 1, 0, moved);
+              SC.renderLanguageList();
+              if (SC.renderAllLines) SC.renderAllLines();
+            }
+          });
+
+          const btnDown = document.createElement('button');
+          btnDown.type = 'button';
+          btnDown.className = 'sc-btn-arrow sc-btn-arrow-down';
+          btnDown.textContent = '▼';
+          btnDown.title = 'Переместить вниз';
+          btnDown.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (index < SC.state.languages.length - 1) {
+              const moved = SC.state.languages.splice(index, 1)[0];
+              SC.state.languages.splice(index + 1, 0, moved);
+              SC.renderLanguageList();
+              if (SC.renderAllLines) SC.renderAllLines();
+            }
+          });
+
+          arrowsWrap.appendChild(btnUp);
+          arrowsWrap.appendChild(btnDown);
+          orderControls.appendChild(arrowsWrap);
+        }
       }
 
       row.appendChild(orderControls);
@@ -392,7 +439,6 @@
         bufferWrap.className = 'sc-buffer-wrap';
         bufferWrap.title = `Буфер упреждения перевода (в символах, макс. ${engineMax})`;
         bufferWrap.innerHTML = `
-          <span class="sc-buffer-label">Буфер:</span>
           <input type="text" inputmode="numeric" pattern="[0-9]*" class="sc-buffer-input" value="${item.bufferChars}" title="Буфер упреждения перевода в символах (макс. ${engineMax})">
         `;
         const bufferInput = bufferWrap.querySelector('.sc-buffer-input');

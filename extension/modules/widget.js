@@ -283,9 +283,9 @@
     SC.listEl = null;
     SC.countBadge = null;
 
-    // Prevent accidental HTML5 text/element dragging across widget except language items
+    // Prevent accidental HTML5 text/element dragging across widget except language drag handles
     widget.addEventListener('dragstart', (e) => {
-      if (!e.target.closest('.sc-lang-item')) {
+      if (!e.target.closest('.sc-lang-drag')) {
         e.preventDefault();
       }
     });
