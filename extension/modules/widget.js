@@ -1,6 +1,6 @@
 /**
  * Video Subtitles Capturer - Widget Module
- * Manages the floating Shadow DOM panel, language selector bar, subtitle feed, and events.
+ * Manages the floating Shadow DOM panel, position sliders, window lifecycle, and drag events.
  */
 
 (() => {
@@ -13,7 +13,6 @@
   SC.listEl = null;
   SC.countBadge = null;
   SC.launcherBtn = null;
-  SC.videoIcons = new Map();
 
   // Open control panel
   SC.openWidget = function() {
@@ -54,333 +53,6 @@
     }
     if (SC.updateVideoIconsState) SC.updateVideoIconsState();
     if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
-  };
-
-  // Update visual state (active class and title) for all on-video launcher icons
-  SC.videoIconData = SC.videoIconData || new Map();
-  SC.lastMousePos = SC.lastMousePos || { x: -1, y: -1 };
-  let autohideGlobalListenersSetup = false;
-
-  // Check whether an icon must remain visible (on pause or when control panel is open, ai_instrs/_.md:43)
-  SC.isIconForcedVisible = function(video) {
-    if (!video) return false;
-    if (video.paused || video.ended) return true;
-    if (SC.state.widgetVisible) return true;
-    return false;
-  };
-
-  // Smoothly show icon (ai_instrs/_.md:43)
-  SC.showVideoIcon = function(video, btn) {
-    const data = SC.videoIconData?.get(video);
-    if (data?.inactivityTimer) {
-      clearTimeout(data.inactivityTimer);
-      data.inactivityTimer = null;
-    }
-    btn.classList.remove('sc-autohide');
-  };
-
-  // Smoothly hide icon with 1s fade-out (ai_instrs/_.md:43)
-  SC.hideVideoIcon = function(video, btn) {
-    const data = SC.videoIconData?.get(video);
-    if (data?.inactivityTimer) {
-      clearTimeout(data.inactivityTimer);
-      data.inactivityTimer = null;
-    }
-    if (SC.isIconForcedVisible(video)) {
-      btn.classList.remove('sc-autohide');
-      return;
-    }
-    btn.classList.add('sc-autohide');
-  };
-
-  // Schedule smooth fade-out after 2-3 seconds of cursor inactivity over video (ai_instrs/_.md:43)
-  SC.scheduleInactivityHide = function(video, btn) {
-    const data = SC.videoIconData?.get(video);
-    if (!data) return;
-    if (data.inactivityTimer) {
-      clearTimeout(data.inactivityTimer);
-      data.inactivityTimer = null;
-    }
-    if (SC.isIconForcedVisible(video)) {
-      btn.classList.remove('sc-autohide');
-      return;
-    }
-    SC.showVideoIcon(video, btn);
-    data.inactivityTimer = setTimeout(() => {
-      data.inactivityTimer = null;
-      if (!SC.isIconForcedVisible(video)) {
-        btn.classList.add('sc-autohide');
-      }
-    }, 2500); // 2.5s (2–3 секунды неактивности курсора над видео)
-  };
-
-  // Test whether client coordinates are inside video detect window or over the icon button
-  SC.isCursorInsideVideo = function(video, btn, clientX, clientY) {
-    if (typeof clientX !== 'number' || typeof clientY !== 'number' || clientX < 0 || clientY < 0) {
-      return false;
-    }
-    if (btn) {
-      const bRect = btn.getBoundingClientRect();
-      if (clientX >= bRect.left && clientX <= bRect.right && clientY >= bRect.top && clientY <= bRect.bottom) {
-        return true;
-      }
-    }
-    const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
-    if (vRect) {
-      if (clientX >= vRect.left && clientX <= vRect.right && clientY >= vRect.top && clientY <= vRect.bottom) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Global mouse listeners to handle hover, inactivity, and exit across video boundaries
-  SC.setupVideoAutohideGlobalListeners = function() {
-    if (autohideGlobalListenersSetup) return;
-    autohideGlobalListenersSetup = true;
-
-    const onPointerMove = (e) => {
-      SC.lastMousePos.x = e.clientX;
-      SC.lastMousePos.y = e.clientY;
-
-      if (!SC.videoIcons || SC.videoIcons.size === 0) return;
-      for (const [video, btn] of SC.videoIcons.entries()) {
-        const data = SC.videoIconData?.get(video);
-        if (!data) continue;
-
-        const isInside = SC.isCursorInsideVideo(video, btn, e.clientX, e.clientY);
-        if (isInside) {
-          data.isHovered = true;
-          // "при движении мыши над видео плавно появляется"
-          SC.showVideoIcon(video, btn);
-          if (!SC.isIconForcedVisible(video)) {
-            // "при воспроизведении иконка плавно скрывается через 2–3 секунды неактивности курсора над видео"
-            SC.scheduleInactivityHide(video, btn);
-          }
-        } else if (data.isHovered) {
-          data.isHovered = false;
-          // "при выходе за границы видео плавно скрывается за 1 секунду"
-          if (!SC.isIconForcedVisible(video)) {
-            SC.hideVideoIcon(video, btn);
-          }
-        }
-      }
-    };
-
-    const onPointerLeave = (e) => {
-      if (!e.relatedTarget && !e.toElement) {
-        SC.lastMousePos.x = -1;
-        SC.lastMousePos.y = -1;
-        if (!SC.videoIcons || SC.videoIcons.size === 0) return;
-        for (const [video, btn] of SC.videoIcons.entries()) {
-          const data = SC.videoIconData?.get(video);
-          if (data) data.isHovered = false;
-          if (!SC.isIconForcedVisible(video)) {
-            SC.hideVideoIcon(video, btn);
-          }
-        }
-      }
-    };
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('pointerdown', onPointerMove, { passive: true });
-    window.addEventListener('pointerleave', onPointerLeave, { passive: true });
-    document.addEventListener('pointerleave', onPointerLeave, { passive: true });
-
-    if (SC.getAccessibleDocuments) {
-      SC.getAccessibleDocuments().forEach(doc => {
-        try {
-          doc.addEventListener('pointermove', onPointerMove, { passive: true });
-          doc.addEventListener('pointerdown', onPointerMove, { passive: true });
-          doc.addEventListener('pointerleave', onPointerLeave, { passive: true });
-        } catch (_) {}
-      });
-    }
-  };
-
-  // Update visual state (active class and title) and autohide visibility for all on-video launcher icons
-  SC.updateVideoIconsState = function() {
-    if (!SC.videoIcons || SC.videoIcons.size === 0) return;
-    for (const [video, btn] of SC.videoIcons.entries()) {
-      const isActive = Boolean(SC.state.widgetVisible && (SC.state.activeVideo === video || !SC.state.activeVideo));
-      btn.classList.toggle('sc-active', isActive);
-      btn.title = isActive ? 'Скрыть панель управления' : 'Открыть панель управления';
-
-      // Update autohide visibility: stays visible on pause or when control panel is open (ai_instrs/_.md:43)
-      if (SC.isIconForcedVisible(video)) {
-        SC.showVideoIcon(video, btn);
-      } else {
-        const isInside = SC.isCursorInsideVideo(video, btn, SC.lastMousePos.x, SC.lastMousePos.y);
-        const data = SC.videoIconData?.get(video);
-        if (data) data.isHovered = isInside;
-        if (isInside) {
-          SC.scheduleInactivityHide(video, btn);
-        } else {
-          SC.hideVideoIcon(video, btn);
-        }
-      }
-    }
-  };
-
-  // Register video as having detected subtitles and create on-video launcher icon with autohide logic
-  SC.registerVideoWithSubtitles = function(video) {
-    if (!video || !SC.shadowRoot) return;
-    if (video.ownerDocument !== document) return;
-    if (SC.videoIcons.has(video)) return;
-
-    const iconBtn = document.createElement('button');
-    iconBtn.className = 'sc-video-badge-btn';
-    iconBtn.title = 'Панель управления субтитрами';
-    iconBtn.innerHTML = `
-      <svg viewBox="0 0 24 24">
-        <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
-      </svg>
-    `;
-
-    // Toggle control panel on click (ai_instrs/_.md:8)
-    iconBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (SC.state.widgetVisible && SC.state.activeVideo === video) {
-        SC.closeWidget();
-      } else {
-        SC.state.activeVideo = video;
-        SC.openWidget();
-      }
-    });
-
-    SC.shadowRoot.appendChild(iconBtn);
-    SC.videoIcons.set(video, iconBtn);
-
-    // Setup autohide listeners (ai_instrs/_.md:43)
-    SC.setupVideoAutohideGlobalListeners();
-
-    const onPlayStateChange = () => {
-      if (SC.isIconForcedVisible(video)) {
-        SC.showVideoIcon(video, iconBtn);
-      } else {
-        const isInside = SC.isCursorInsideVideo(video, iconBtn, SC.lastMousePos.x, SC.lastMousePos.y);
-        const data = SC.videoIconData?.get(video);
-        if (data) data.isHovered = isInside;
-        if (isInside) {
-          SC.scheduleInactivityHide(video, iconBtn);
-        } else {
-          SC.hideVideoIcon(video, iconBtn);
-        }
-      }
-    };
-
-    video.addEventListener('play', onPlayStateChange);
-    video.addEventListener('playing', onPlayStateChange);
-    video.addEventListener('pause', onPlayStateChange);
-    video.addEventListener('ended', onPlayStateChange);
-
-    const onDirectMouseMove = () => {
-      const data = SC.videoIconData?.get(video);
-      if (data) data.isHovered = true;
-      SC.showVideoIcon(video, iconBtn);
-      if (!SC.isIconForcedVisible(video)) {
-        SC.scheduleInactivityHide(video, iconBtn);
-      }
-    };
-
-    const onDirectMouseLeave = (e) => {
-      const data = SC.videoIconData?.get(video);
-      if (e && typeof e.clientX === 'number') {
-        if (SC.isCursorInsideVideo(video, iconBtn, e.clientX, e.clientY)) {
-          return;
-        }
-      }
-      if (data) data.isHovered = false;
-      if (!SC.isIconForcedVisible(video)) {
-        SC.hideVideoIcon(video, iconBtn);
-      }
-    };
-
-    video.addEventListener('pointermove', onDirectMouseMove, { passive: true });
-    video.addEventListener('pointerenter', onDirectMouseMove, { passive: true });
-    video.addEventListener('pointerleave', onDirectMouseLeave, { passive: true });
-    video.addEventListener('pointerdown', onDirectMouseMove, { passive: true });
-
-    iconBtn.addEventListener('pointermove', onDirectMouseMove, { passive: true });
-    iconBtn.addEventListener('pointerenter', onDirectMouseMove, { passive: true });
-    iconBtn.addEventListener('pointerleave', onDirectMouseLeave, { passive: true });
-    iconBtn.addEventListener('pointerdown', onDirectMouseMove, { passive: true });
-
-    const iconData = {
-      video,
-      btn: iconBtn,
-      inactivityTimer: null,
-      isHovered: false,
-      cleanup: () => {
-        if (iconData.inactivityTimer) {
-          clearTimeout(iconData.inactivityTimer);
-          iconData.inactivityTimer = null;
-        }
-        video.removeEventListener('play', onPlayStateChange);
-        video.removeEventListener('playing', onPlayStateChange);
-        video.removeEventListener('pause', onPlayStateChange);
-        video.removeEventListener('ended', onPlayStateChange);
-        video.removeEventListener('pointermove', onDirectMouseMove);
-        video.removeEventListener('pointerenter', onDirectMouseMove);
-        video.removeEventListener('pointerleave', onDirectMouseLeave);
-        video.removeEventListener('pointerdown', onDirectMouseMove);
-        iconBtn.removeEventListener('pointermove', onDirectMouseMove);
-        iconBtn.removeEventListener('pointerenter', onDirectMouseMove);
-        iconBtn.removeEventListener('pointerleave', onDirectMouseLeave);
-        iconBtn.removeEventListener('pointerdown', onDirectMouseMove);
-      }
-    };
-
-    SC.videoIconData.set(video, iconData);
-
-    SC.updateVideoIconsPosition();
-    SC.updateVideoIconsState();
-  };
-
-  // Update positions for all on-video launcher icons strictly within video detect window
-  SC.updateVideoIconsPosition = function() {
-    if (!SC.videoIcons || SC.videoIcons.size === 0) return;
-    for (const [video, btn] of SC.videoIcons.entries()) {
-      const doc = video.ownerDocument || document;
-      if (!doc.contains(video)) {
-        const data = SC.videoIconData?.get(video);
-        if (data) {
-          data.cleanup();
-          SC.videoIconData.delete(video);
-        }
-        btn.remove();
-        SC.videoIcons.delete(video);
-        continue;
-      }
-
-      const rect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
-      if (rect.width < 50 || rect.height < 50 || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
-        btn.style.display = 'none';
-        continue;
-      }
-
-      const iconW = 32;
-      const iconH = 32;
-      const pad = 10;
-
-      // Ensure icon stays strictly within the visible intersection of video and viewport (ai_instrs/_.md:8)
-      const visibleTop = Math.max(0, rect.top);
-      const visibleBottom = Math.min(window.innerHeight, rect.bottom);
-      const visibleLeft = Math.max(0, rect.left);
-      const visibleRight = Math.min(window.innerWidth, rect.right);
-
-      const minLeft = visibleLeft + pad;
-      const maxLeft = Math.max(minLeft, visibleRight - iconW - pad);
-      const minTop = visibleTop + pad;
-      const maxTop = Math.max(minTop, visibleBottom - iconH - pad);
-
-      const left = Math.max(minLeft, Math.min(maxLeft, visibleRight - iconW - pad));
-      const top = Math.max(minTop, Math.min(maxTop, visibleTop + pad));
-
-      btn.style.display = 'flex';
-      btn.style.top = `${Math.round(top)}px`;
-      btn.style.left = `${Math.round(left)}px`;
-    }
   };
 
   // Adjust control panel position strictly within video detect window boundaries (ai_instrs/_.md:8)
@@ -459,7 +131,7 @@
       const el = SC.shadowRoot?.getElementById(removedLines[i].id);
       if (el) el.remove();
     }
-    SC.updateBadge();
+    if (SC.updateBadge) SC.updateBadge();
   };
 
   // Initialize the in-page floating widget within Shadow DOM
@@ -569,7 +241,7 @@
         <button class="sc-btn-add-lang" id="sc-btn-add-lang" title="Добавить новый селектор языка">+ Добавить селектор языка</button>
       </div>
 
-      <!-- Embedded Styles Accordion Panel (Вариант 2: прямо внутри панели управления) -->
+      <!-- Embedded Styles Accordion Panel -->
       <div class="sc-styles-panel sc-hidden" id="sc-styles-panel"></div>
 
       <!-- Subtitle position sliders with input (ai_instrs/_.md:24) -->
@@ -604,7 +276,7 @@
     `;
 
     // Initialize On-video Subtitles Overlay
-    SC.initOverlay(shadow);
+    if (SC.initOverlay) SC.initOverlay(shadow);
 
     shadow.appendChild(widget);
     shadow.appendChild(launcher);
@@ -622,489 +294,8 @@
     });
 
     SC.setupWidgetEvents();
-    SC.renderLanguageList();
+    if (SC.renderLanguageList) SC.renderLanguageList();
     SC.setupDraggable(widget, shadow.getElementById('sc-header'));
-  };
-
-  // Render language selectors list in the widget header
-  // Render language selectors list in the widget header
-  SC.renderLanguageList = function() {
-    if (!SC.shadowRoot) return;
-    const container = SC.shadowRoot.getElementById('sc-lang-list');
-    if (!container) return;
-    container.innerHTML = '';
-
-    const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
-
-    SC.state.languages.forEach((item, index) => {
-      // Normalize selector properties
-      if (!item.mode) {
-        item.mode = (item.type === 'source' || item.mode === 'track') ? 'track' : 'trans';
-      }
-      if (item.mode === 'track') {
-        if (!item.trackId || !availTracks.some(a => a.value === item.trackId)) {
-          item.trackId = availTracks.length > 0 ? availTracks[0].value : '';
-        }
-        item.lang = item.trackId;
-        item.type = 'source';
-      } else {
-        if (!item.sourceTrack || !availTracks.some(a => a.value === item.sourceTrack)) {
-          item.sourceTrack = (item.sourceFrom && availTracks.some(a => a.value === item.sourceFrom))
-            ? item.sourceFrom
-            : (availTracks.length > 0 ? availTracks[0].value : '');
-        }
-        item.sourceFrom = item.sourceTrack;
-        if (!item.targetLang) {
-          item.targetLang = (item.lang && !item.lang.includes(':') && item.lang !== 'auto')
-            ? item.lang
-            : (SC.getSuggestedTargetLang ? SC.getSuggestedTargetLang(item.sourceTrack) : 'en');
-        }
-        item.lang = item.targetLang;
-        item.type = 'translation';
-      }
-
-      const row = document.createElement('div');
-      row.className = 'sc-lang-item';
-      row.draggable = true;
-      row.dataset.index = index;
-
-      // Drag & Drop reordering
-      row.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', String(index));
-        row.classList.add('sc-dragging');
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('sc-dragging');
-      });
-      row.addEventListener('dragover', (e) => {
-        e.preventDefault();
-      });
-      row.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-        const toIdx = index;
-        if (!isNaN(fromIdx) && fromIdx !== toIdx) {
-          const moved = SC.state.languages.splice(fromIdx, 1)[0];
-          SC.state.languages.splice(toIdx, 0, moved);
-          SC.renderLanguageList();
-          SC.renderAllLines();
-        }
-      });
-
-      // Drag and order controls (ai_instrs/_.md:23-26)
-      const orderControls = document.createElement('div');
-      orderControls.className = 'sc-lang-order-wrap';
-
-      // Element for grab and toggle drag
-      const dragHandle = document.createElement('span');
-      dragHandle.className = 'sc-lang-drag';
-      dragHandle.title = 'Зажмите для перетаскивания (или клик для переключения режима перетаскивания)';
-      dragHandle.textContent = '⠿';
-      dragHandle.style.touchAction = 'none';
-
-      let isPointerDragging = false;
-      let toggleDragActive = false;
-
-      dragHandle.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleDragActive = !toggleDragActive;
-        dragHandle.classList.toggle('sc-drag-active', toggleDragActive);
-        row.classList.toggle('sc-toggle-drag-selected', toggleDragActive);
-      });
-
-      dragHandle.addEventListener('pointerdown', (e) => {
-        isPointerDragging = true;
-        row.classList.add('sc-dragging');
-        try { dragHandle.setPointerCapture(e.pointerId); } catch (_) {}
-        e.stopPropagation();
-      });
-      dragHandle.addEventListener('pointermove', (e) => {
-        if (!isPointerDragging) return;
-        const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.sc-lang-item');
-        if (targetEl && targetEl !== row && targetEl.dataset.index !== undefined) {
-          const fromIdx = index;
-          const toIdx = parseInt(targetEl.dataset.index, 10);
-          if (!isNaN(toIdx) && fromIdx !== toIdx) {
-            const moved = SC.state.languages.splice(fromIdx, 1)[0];
-            SC.state.languages.splice(toIdx, 0, moved);
-            SC.renderLanguageList();
-            SC.renderAllLines();
-          }
-        }
-      });
-      const endPointerDrag = (e) => {
-        if (!isPointerDragging) return;
-        isPointerDragging = false;
-        row.classList.remove('sc-dragging');
-        try { dragHandle.releasePointerCapture(e.pointerId); } catch (_) {}
-      };
-      dragHandle.addEventListener('pointerup', endPointerDrag);
-      dragHandle.addEventListener('pointercancel', endPointerDrag);
-      orderControls.appendChild(dragHandle);
-
-      // Up / Down arrow buttons for order change
-      const arrowsWrap = document.createElement('div');
-      arrowsWrap.className = 'sc-lang-arrows';
-
-      const btnUp = document.createElement('button');
-      btnUp.type = 'button';
-      btnUp.className = 'sc-lang-arrow-btn sc-lang-arrow-up';
-      btnUp.title = 'Переместить вверх';
-      btnUp.textContent = '▲';
-      btnUp.disabled = index === 0;
-      btnUp.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (index > 0) {
-          const moved = SC.state.languages.splice(index, 1)[0];
-          SC.state.languages.splice(index - 1, 0, moved);
-          SC.renderLanguageList();
-          SC.renderAllLines();
-        }
-      });
-
-      const btnDown = document.createElement('button');
-      btnDown.type = 'button';
-      btnDown.className = 'sc-lang-arrow-btn sc-lang-arrow-down';
-      btnDown.title = 'Переместить вниз';
-      btnDown.textContent = '▼';
-      btnDown.disabled = index === SC.state.languages.length - 1;
-      btnDown.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (index < SC.state.languages.length - 1) {
-          const moved = SC.state.languages.splice(index, 1)[0];
-          SC.state.languages.splice(index + 1, 0, moved);
-          SC.renderLanguageList();
-          SC.renderAllLines();
-        }
-      });
-
-      arrowsWrap.appendChild(btnUp);
-      arrowsWrap.appendChild(btnDown);
-      orderControls.appendChild(arrowsWrap);
-
-      row.appendChild(orderControls);
-
-      // Visibility toggle button (ai_instrs/_.md)
-      const visBtn = document.createElement('button');
-      visBtn.type = 'button';
-      visBtn.className = `sc-lang-vis ${item.visible ? '' : 'sc-hidden-vis'}`;
-      visBtn.title = item.visible ? 'Скрыть этот язык' : 'Показать этот язык';
-      visBtn.textContent = item.visible ? '👁' : '⊘';
-      visBtn.addEventListener('click', () => {
-        item.visible = !item.visible;
-        SC.renderLanguageList();
-        SC.renderAllLines();
-      });
-      row.appendChild(visBtn);
-
-      // Styles button for current language selector (ai_instrs/_.md)
-      const styleBtn = document.createElement('button');
-      styleBtn.type = 'button';
-      styleBtn.className = 'sc-lang-style-btn';
-      styleBtn.title = 'Стили текста субтитра для этого языка';
-      styleBtn.textContent = '🎨';
-      styleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        SC.openLangStyleModal(item);
-      });
-      row.appendChild(styleBtn);
-
-      // Controls container
-      const controls = document.createElement('div');
-      controls.className = 'sc-lang-controls';
-
-      // Mode select: "Субтитр" (Выбор субтитра из суб-списка) vs "Перевод" (Перевод с выбором языка)
-      const modeSelect = document.createElement('select');
-      modeSelect.className = 'sc-lang-select sc-mode-select';
-      modeSelect.title = 'Режим: Субтитр из суб-списка или Перевод';
-      modeSelect.innerHTML = `
-        <option value="track" ${item.mode === 'track' ? 'selected' : ''}>Субтитр</option>
-        <option value="trans" ${item.mode === 'trans' ? 'selected' : ''}>Перевод</option>
-      `;
-      controls.appendChild(modeSelect);
-
-      if (item.mode === 'track') {
-        // Direct subtitle from sub-list (default: first element)
-        const trackSelect = document.createElement('select');
-        trackSelect.className = 'sc-lang-select sc-track-select';
-        trackSelect.title = 'Выбор субтитра из суб-списка доступных к видео (по умолчанию первый)';
-
-        if (availTracks.length > 0) {
-          trackSelect.disabled = false;
-          const trackExists = availTracks.some(a => a.value === item.trackId);
-          availTracks.forEach((tr, idx) => {
-            const opt = document.createElement('option');
-            opt.value = tr.value;
-            opt.textContent = tr.label;
-            if (item.trackId === tr.value || (!trackExists && idx === 0)) {
-              opt.selected = true;
-              item.trackId = tr.value;
-              item.lang = tr.value;
-              if (item.trackId.startsWith('yt:')) {
-                const code = item.trackId.replace('yt:', '');
-                const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
-                if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.trackId);
-              }
-            }
-            trackSelect.appendChild(opt);
-          });
-        } else {
-          trackSelect.innerHTML = '<option value="" disabled selected>Дорожки не обнаружены</option>';
-          trackSelect.disabled = true;
-        }
-
-        trackSelect.addEventListener('change', (e) => {
-          item.trackId = e.target.value;
-          item.lang = item.trackId;
-          if (item.trackId.startsWith('yt:')) {
-            const code = item.trackId.replace('yt:', '');
-            const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
-            if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.trackId);
-          }
-          SC.renderAllLines();
-        });
-        controls.appendChild(trackSelect);
-      } else {
-        // Translation: source from sub-list + target translation language (Google Translate)
-        const sourceSelect = document.createElement('select');
-        sourceSelect.className = 'sc-lang-select sc-source-from-select';
-        sourceSelect.title = 'Выбор источника из суб-списка';
-
-        if (availTracks.length > 0) {
-          sourceSelect.disabled = false;
-          const sourceExists = availTracks.some(a => a.value === item.sourceTrack);
-          availTracks.forEach((tr, idx) => {
-            const opt = document.createElement('option');
-            opt.value = tr.value;
-            opt.textContent = tr.label;
-            if (item.sourceTrack === tr.value || (!sourceExists && idx === 0)) {
-              opt.selected = true;
-              item.sourceTrack = tr.value;
-              item.sourceFrom = tr.value;
-              if (item.sourceTrack.startsWith('yt:')) {
-                const code = item.sourceTrack.replace('yt:', '');
-                const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
-                if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.sourceTrack);
-              }
-            }
-            sourceSelect.appendChild(opt);
-          });
-        } else {
-          sourceSelect.innerHTML = '<option value="" disabled selected>Дорожки не обнаружены</option>';
-          sourceSelect.disabled = true;
-        }
-
-        sourceSelect.addEventListener('change', (e) => {
-          item.sourceTrack = e.target.value;
-          item.sourceFrom = item.sourceTrack;
-          if (item.sourceTrack.startsWith('yt:')) {
-            const code = item.sourceTrack.replace('yt:', '');
-            const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
-            if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.sourceTrack);
-          }
-          if (SC.retranslateItem) SC.retranslateItem(item);
-          if (SC.prefetchUpcomingTranslations) {
-            const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
-          }
-          SC.renderAllLines();
-        });
-        controls.appendChild(sourceSelect);
-
-        // Arrow
-        const arrow = document.createElement('span');
-        arrow.className = 'sc-trans-arrow';
-        arrow.textContent = '➔';
-        controls.appendChild(arrow);
-
-        // Target language choice (Google Translate)
-        const targetSelect = document.createElement('select');
-        targetSelect.className = 'sc-lang-select sc-target-lang-select';
-        targetSelect.title = 'Выбор языка перевода (Google Translate)';
-
-        SC.AVAILABLE_LANGUAGES.forEach(lang => {
-          const opt = document.createElement('option');
-          opt.value = lang.code;
-          opt.textContent = lang.name;
-          if (item.targetLang === lang.code) opt.selected = true;
-          targetSelect.appendChild(opt);
-        });
-
-        targetSelect.addEventListener('change', (e) => {
-          item.targetLang = e.target.value;
-          item.lang = item.targetLang;
-          if (SC.retranslateItem) SC.retranslateItem(item);
-          if (SC.prefetchUpcomingTranslations) {
-            const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
-          }
-          SC.renderAllLines();
-        });
-        controls.appendChild(targetSelect);
-
-        // Translation engine select (ai_instrs/_.md:21-25)
-        const engines = (SC.getAvailableEngines ? SC.getAvailableEngines() : SC.TRANSLATION_ENGINES) || [
-          { id: 'google', name: 'Google', maxChars: 1800 },
-          { id: 'yandex', name: 'Yandex', maxChars: 10000 },
-          { id: 'chrome', name: 'Chrome AI', maxChars: 4000 }
-        ];
-        if (!engines.some(e => e.id === item.engine)) {
-          item.engine = engines[0]?.id || 'google';
-        }
-        item.engine = item.engine || 'google';
-        const engineSelect = document.createElement('select');
-        engineSelect.className = 'sc-lang-select sc-engine-select';
-        engineSelect.title = 'Выбор движка перевода (по умолчанию: Google Translate)';
-        engines.forEach(eng => {
-          const opt = document.createElement('option');
-          opt.value = eng.id;
-          opt.textContent = eng.name;
-          if (item.engine === eng.id) opt.selected = true;
-          engineSelect.appendChild(opt);
-        });
-
-        // Buffer input in characters (ai_instrs/_.md:25)
-        const getEngineMax = (eng) => (SC.getEngineMaxChars ? SC.getEngineMaxChars(eng) : (eng === 'yandex' ? 10000 : (eng === 'chrome' ? 4000 : 1800)));
-        const engineMax = getEngineMax(item.engine);
-        const defaultChars = SC.getDefaultBufferChars ? SC.getDefaultBufferChars(item.engine) : Math.min(1000, engineMax);
-        if (item.bufferChars === undefined || item.bufferChars === null) {
-          item.bufferChars = defaultChars;
-        } else {
-          item.bufferChars = Math.max(1, Math.min(Number(item.bufferChars), engineMax));
-        }
-
-        const bufferWrap = document.createElement('div');
-        bufferWrap.className = 'sc-buffer-wrap';
-        bufferWrap.title = `Буфер упреждения перевода (в символах, макс. ${engineMax})`;
-        bufferWrap.innerHTML = `
-          <span class="sc-buffer-label">Буфер:</span>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="sc-buffer-input" value="${item.bufferChars}" title="Буфер упреждения перевода в символах (макс. ${engineMax})">
-          <span class="sc-buffer-unit">симв</span>
-        `;
-        const bufferInput = bufferWrap.querySelector('.sc-buffer-input');
-
-        engineSelect.addEventListener('change', (e) => {
-          item.engine = e.target.value;
-          const currentMax = getEngineMax(item.engine);
-          if (item.bufferChars > currentMax) {
-            item.bufferChars = currentMax;
-          }
-          if (bufferInput) {
-            bufferInput.value = item.bufferChars;
-            bufferInput.title = `Буфер упреждения перевода в символах (макс. ${currentMax})`;
-          }
-          if (SC.retranslateItem) SC.retranslateItem(item);
-          if (SC.prefetchUpcomingTranslations) {
-            const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
-          }
-          SC.renderAllLines();
-        });
-        controls.appendChild(engineSelect);
-
-        const onBufferChange = (e) => {
-          if (e.type === 'input') {
-            bufferInput.value = bufferInput.value.replace(/\D/g, '');
-          }
-          if (e.type === 'change' || e.type === 'blur') {
-            const val = parseInt(bufferInput.value, 10);
-            const currentMax = getEngineMax(item.engine);
-            item.bufferChars = isNaN(val) ? Math.min(1000, currentMax) : Math.max(1, Math.min(currentMax, val));
-            bufferInput.value = item.bufferChars;
-            if (SC.prefetchUpcomingTranslations) {
-              const v = SC.getActiveVideo();
-              SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
-            }
-          }
-        };
-        bufferInput.addEventListener('input', onBufferChange);
-        bufferInput.addEventListener('change', onBufferChange);
-        bufferInput.addEventListener('blur', onBufferChange);
-        controls.appendChild(bufferWrap);
-      }
-
-      modeSelect.addEventListener('change', (e) => {
-        const newMode = e.target.value;
-        item.mode = newMode;
-        if (newMode === 'track') {
-          item.type = 'source';
-          item.trackId = availTracks.length > 0 ? availTracks[0].value : '';
-          item.lang = item.trackId;
-          if (item.trackId && item.trackId.startsWith('yt:')) {
-            const code = item.trackId.replace('yt:', '');
-            const foundYt = SC.ytCaptionTracks.find(t => t.languageCode === code || String(SC.ytCaptionTracks.indexOf(t)) === code);
-            if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.trackId);
-          }
-        } else {
-          item.type = 'translation';
-          item.sourceTrack = availTracks.length > 0 ? availTracks[0].value : '';
-          item.sourceFrom = item.sourceTrack;
-          const suggested = SC.getSuggestedTargetLang ? SC.getSuggestedTargetLang(item.sourceTrack) : 'en';
-          item.targetLang = (item.targetLang && !item.targetLang.includes(':') && item.targetLang !== 'auto') ? item.targetLang : suggested;
-          item.lang = item.targetLang;
-          if (SC.retranslateItem) SC.retranslateItem(item);
-          if (SC.prefetchUpcomingTranslations) {
-            const v = SC.getActiveVideo();
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
-          }
-        }
-        SC.renderLanguageList();
-        SC.renderAllLines();
-      });
-
-      row.appendChild(controls);
-
-      // Actions: Move up/down and delete
-      const actions = document.createElement('div');
-      actions.className = 'sc-lang-actions';
-
-      if (index > 0) {
-        const upBtn = document.createElement('button');
-        upBtn.className = 'sc-btn-mini';
-        upBtn.title = 'Вверх';
-        upBtn.textContent = '▲';
-        upBtn.addEventListener('click', () => {
-          const tmp = SC.state.languages[index];
-          SC.state.languages[index] = SC.state.languages[index - 1];
-          SC.state.languages[index - 1] = tmp;
-          SC.renderLanguageList();
-          SC.renderAllLines();
-        });
-        actions.appendChild(upBtn);
-      }
-
-      if (index < SC.state.languages.length - 1) {
-        const downBtn = document.createElement('button');
-        downBtn.className = 'sc-btn-mini';
-        downBtn.title = 'Вниз';
-        downBtn.textContent = '▼';
-        downBtn.addEventListener('click', () => {
-          const tmp = SC.state.languages[index];
-          SC.state.languages[index] = SC.state.languages[index + 1];
-          SC.state.languages[index + 1] = tmp;
-          SC.renderLanguageList();
-          SC.renderAllLines();
-        });
-        actions.appendChild(downBtn);
-      }
-
-      if (SC.state.languages.length > 1) {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'sc-btn-mini';
-        delBtn.style.color = '#ef4444';
-        delBtn.title = 'Удалить этот селектор';
-        delBtn.textContent = '✕';
-        delBtn.addEventListener('click', () => {
-          SC.state.languages.splice(index, 1);
-          SC.renderLanguageList();
-          SC.renderAllLines();
-        });
-        actions.appendChild(delBtn);
-      }
-
-      row.appendChild(actions);
-      container.appendChild(row);
-    });
   };
 
   // Update on-video overlay when translation finishes
@@ -1149,34 +340,12 @@
       });
     }
 
-    // Add language selector (ai_instrs/_.md)
+    // Add language selector button (ai_instrs/_.md)
     if (addLangBtn) {
       addLangBtn.addEventListener('click', () => {
-        const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
-        const nextLangCode = SC.getSuggestedTargetLang ? SC.getSuggestedTargetLang() : 'en';
-
-        const newSelector = {
-          id: `lang_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          type: 'translation',
-          mode: 'trans',
-          trackId: availTracks.length > 0 ? availTracks[0].value : '',
-          sourceTrack: availTracks.length > 0 ? availTracks[0].value : '',
-          sourceFrom: availTracks.length > 0 ? availTracks[0].value : '',
-          targetLang: nextLangCode,
-          engine: 'google',
-          bufferChars: SC.getDefaultBufferChars ? SC.getDefaultBufferChars('google') : 1000,
-          bufferSec: 30,
-          lang: nextLangCode,
-          visible: true
-        };
-        SC.state.languages.push(newSelector);
-        SC.renderLanguageList();
-        if (SC.retranslateItem) SC.retranslateItem(newSelector);
-        if (SC.prefetchUpcomingTranslations) {
-          const v = SC.getActiveVideo();
-          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, newSelector.bufferChars);
+        if (SC.addNewLanguageSelector) {
+          SC.addNewLanguageSelector();
         }
-        SC.renderAllLines();
       });
     }
 
@@ -1185,40 +354,50 @@
       autoScrollBtn.addEventListener('click', () => {
         SC.state.autoScroll = !SC.state.autoScroll;
         autoScrollBtn.classList.toggle('active', SC.state.autoScroll);
-        if (SC.state.autoScroll) SC.scrollListToBottom();
+        if (SC.state.autoScroll && SC.scrollListToBottom) SC.scrollListToBottom();
       });
     }
 
     // Font size adjustments
-    fontIncBtn.addEventListener('click', () => {
-      if (SC.state.fontSize < 22) {
-        SC.state.fontSize += 1;
-        SC.applyFontSize();
-      }
-    });
-    fontDecBtn.addEventListener('click', () => {
-      if (SC.state.fontSize > 10) {
-        SC.state.fontSize -= 1;
-        SC.applyFontSize();
-      }
-    });
+    if (fontIncBtn) {
+      fontIncBtn.addEventListener('click', () => {
+        if (SC.state.fontSize < 22) {
+          SC.state.fontSize += 1;
+          SC.applyFontSize();
+        }
+      });
+    }
+    if (fontDecBtn) {
+      fontDecBtn.addEventListener('click', () => {
+        if (SC.state.fontSize > 10) {
+          SC.state.fontSize -= 1;
+          SC.applyFontSize();
+        }
+      });
+    }
 
     // Minimize toggle
-    minBtn.addEventListener('click', () => {
-      SC.state.minimized = !SC.state.minimized;
-      SC.widgetEl.classList.toggle('sc-minimized', SC.state.minimized);
-      minBtn.textContent = SC.state.minimized ? '▢' : '_';
-    });
+    if (minBtn) {
+      minBtn.addEventListener('click', () => {
+        SC.state.minimized = !SC.state.minimized;
+        SC.widgetEl.classList.toggle('sc-minimized', SC.state.minimized);
+        minBtn.textContent = SC.state.minimized ? '▢' : '_';
+      });
+    }
 
     // Close to launcher
-    closeBtn.addEventListener('click', () => {
-      SC.closeWidget();
-    });
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        SC.closeWidget();
+      });
+    }
 
     // Launcher click to reopen
-    SC.launcherBtn.addEventListener('click', () => {
-      SC.openWidget();
-    });
+    if (SC.launcherBtn) {
+      SC.launcherBtn.addEventListener('click', () => {
+        SC.openWidget();
+      });
+    }
 
     // Video Subtitles Position sliders (ai_instrs/_.md:24)
     const posBar = shadow.getElementById('sc-pos-bar');
@@ -1411,7 +590,7 @@
     // Clear history
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
-        SC.clearAllSubtitles();
+        if (SC.clearAllSubtitles) SC.clearAllSubtitles();
       });
     }
 
@@ -1419,7 +598,7 @@
     if (copyAllBtn) {
       copyAllBtn.addEventListener('click', () => {
         const textToCopy = SC.state.lines.map(l => {
-          const fullText = SC.getLineFullText(l);
+          const fullText = SC.getLineFullText ? SC.getLineFullText(l) : l.text;
           return fullText ? `[${l.videoTime}] ${fullText}` : '';
         }).filter(Boolean).join('\n');
 
@@ -1434,13 +613,14 @@
 
   // Draggable logic for widget window header: strictly constrained to active video detect window (ai_instrs/_.md:8)
   SC.setupDraggable = function(element, handle) {
+    if (!handle || !element) return;
     let isDragging = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
 
     handle.addEventListener('pointerdown', (e) => {
       if (e.target.closest('button, select, input, a')) return;
-      const video = SC.getActiveVideo();
+      const video = SC.getActiveVideo ? SC.getActiveVideo() : null;
       if (!video) return;
 
       isDragging = true;
@@ -1459,7 +639,7 @@
 
       const onPointerMove = (ev) => {
         if (!isDragging) return;
-        const v = SC.getActiveVideo();
+        const v = SC.getActiveVideo ? SC.getActiveVideo() : null;
         if (!v) return;
 
         const vRect = v.getBoundingClientRect();

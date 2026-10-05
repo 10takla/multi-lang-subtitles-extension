@@ -5,6 +5,7 @@
 @import url('modules/styles/variables.css');
 @import url('modules/styles/widget.css');
 @import url('modules/styles/badge.css');
-@import url('modules/styles/controls.css');
+@import url('modules/styles/language_bar.css');
+@import url('modules/styles/position.css');
 @import url('modules/styles/styles_panel.css');
 @import url('modules/styles/overlay.css');
