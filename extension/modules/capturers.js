@@ -264,6 +264,7 @@
       if ((now - lastLine.timestamp) < 6000 || Math.abs(currentVideoTime - lastLine.rawTime) < 8) {
         lastLine.timestamp = now;
         SC.state.currentActiveLine = lastLine;
+        if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
         SC.scheduleOverlayFade(lastLine);
         return;
       }
