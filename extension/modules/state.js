@@ -270,7 +270,7 @@
     currentActiveLine: null,
     overlayFadeTimeout: null,
     showLanguageTags: false, // Default off (ai_instrs/_.md:26)
-    subtitlesEnabled: true, // Master toggle for subtitles display
+    subtitlesEnabled: false, // Master toggle for subtitles display (ai_instrs/_.md:10: default off)
     moveLocked: true, // Блокировка перемещения мышью (по умолчанию вкл)
     // Общие стили (ai_instrs/_.md:22-30)
     globalStyles: {

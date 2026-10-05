@@ -219,9 +219,9 @@
           <span id="sc-status">Мультисубтитры</span>
         </div>
         <div class="sc-header-actions">
-          <div class="sc-subtitles-toggle-wrap" id="sc-toggle-subtitles-wrap" title="Субтитры: Вкл">
+          <div class="sc-subtitles-toggle-wrap sc-disabled" id="sc-toggle-subtitles-wrap" title="Субтитры: Выкл">
             <label class="sc-switch">
-              <input type="checkbox" id="sc-toggle-subtitles" checked>
+              <input type="checkbox" id="sc-toggle-subtitles">
               <span class="sc-switch-slider"></span>
             </label>
           </div>
