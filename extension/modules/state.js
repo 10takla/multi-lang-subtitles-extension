@@ -290,64 +290,15 @@
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  // Get all accessible documents including same-origin iframes
+  // Get all accessible documents strictly scoped to current document to prevent duplicate cross-frame overlays
   SC.getAccessibleDocuments = function() {
-    const docs = [document];
-    function collect(rootDoc) {
-      try {
-        const iframes = rootDoc.querySelectorAll('iframe');
-        for (let i = 0; i < iframes.length; i++) {
-          try {
-            const doc = iframes[i].contentDocument;
-            if (doc && !docs.includes(doc)) {
-              docs.push(doc);
-              collect(doc);
-            }
-          } catch (_) {}
-        }
-      } catch (_) {}
-    }
-    collect(document);
-    return docs;
+    return [document];
   };
 
   // Get video's bounding rectangle mapped to current viewport (accounting for iframes)
   SC.getVideoBoundingClientRect = function(video) {
     if (!video) return null;
-    let rect = video.getBoundingClientRect();
-    const doc = video.ownerDocument;
-    const hostDoc = SC.hostEl?.ownerDocument || document;
-    if (doc && doc !== hostDoc) {
-      try {
-        const win = doc.defaultView;
-        let iframe = win?.frameElement;
-        if (!iframe && hostDoc) {
-          const allIframes = hostDoc.querySelectorAll('iframe');
-          for (let i = 0; i < allIframes.length; i++) {
-            try {
-              if (allIframes[i].contentDocument === doc) {
-                iframe = allIframes[i];
-                break;
-              }
-            } catch (_) {}
-          }
-        }
-        if (iframe) {
-          const ifRect = iframe.getBoundingClientRect();
-          rect = {
-            top: ifRect.top + rect.top,
-            bottom: ifRect.top + rect.bottom,
-            left: ifRect.left + rect.left,
-            right: ifRect.left + rect.right,
-            width: rect.width,
-            height: rect.height,
-            x: ifRect.left + rect.left,
-            y: ifRect.top + rect.top
-          };
-        }
-      } catch (_) {}
-    }
-    return rect;
+    return video.getBoundingClientRect();
   };
 
   // Get video strictly local to this document
@@ -370,30 +321,9 @@
     return null;
   };
 
-  // Find currently active or playing video element with caching across accessible documents
+  // Find currently active or playing video element strictly in this document
   SC.getActiveVideo = function() {
-    const local = SC.getLocalVideo ? SC.getLocalVideo() : null;
-    if (local) return local;
-
-    const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
-    const allVideos = [];
-    for (const doc of docs) {
-      if (doc === document) continue;
-      try {
-        const videos = doc.getElementsByTagName('video');
-        for (let i = 0; i < videos.length; i++) {
-          allVideos.push(videos[i]);
-        }
-      } catch (_) {}
-    }
-    if (!allVideos.length) return null;
-    for (let i = 0; i < allVideos.length; i++) {
-      const v = allVideos[i];
-      if (!v.paused && !v.ended && v.readyState > 2) {
-        return v;
-      }
-    }
-    return allVideos[0];
+    return SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
   };
 
   // Sanitize text

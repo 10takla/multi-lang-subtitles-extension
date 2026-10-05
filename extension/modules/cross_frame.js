@@ -58,7 +58,9 @@
         if (Array.isArray(e.data.lines) && e.data.lines.length > 0) {
           if (SC.state && SC.state.lines.length < e.data.lines.length) {
             SC.state.lines = e.data.lines;
-            if (SC.renderAllLines) SC.renderAllLines();
+            if (SC.getLocalVideo && SC.getLocalVideo() && SC.renderAllLines) {
+              SC.renderAllLines();
+            }
           }
         }
         // Relay upward if middle frame

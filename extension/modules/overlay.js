@@ -35,8 +35,8 @@
   // Adjust overlay position strictly within video boundaries ("в рамках окна видео")
   SC.updateVideoOverlayPosition = function() {
     if (!SC.overlayEl) return;
-    const video = SC.getActiveVideo();
-    if (!video || !SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) {
+    const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
+    if (!video || video.ownerDocument !== document || !SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) {
       SC.overlayEl.classList.add('sc-hidden');
       if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
       return;
@@ -95,8 +95,9 @@
     const linesContainer = SC.shadowRoot.getElementById('sc-video-overlay-lines');
     if (!linesContainer) return;
 
+    const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
     const activeLine = SC.state.currentActiveLine;
-    if (!activeLine || SC.state.subtitlesEnabled === false) {
+    if (!video || video.ownerDocument !== document || !activeLine || SC.state.subtitlesEnabled === false) {
       linesContainer.innerHTML = '';
       SC.overlayEl.classList.add('sc-hidden');
       return;

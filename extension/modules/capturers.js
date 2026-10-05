@@ -414,7 +414,7 @@
    * Hooks into an HTML5 video element, registers listeners, and connects capturers.
    */
   SC.hookVideo = function(video) {
-    if (!video) return;
+    if (!video || video.ownerDocument !== document) return;
     const isFirstHook = !SC.hookedVideos.has(video);
     if (isFirstHook) {
       SC.hookedVideos.add(video);
@@ -637,17 +637,12 @@
     if (SC.scanPageForSubtitleTracks) {
       SC.scanPageForSubtitleTracks();
     }
-    const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
-    docs.forEach(doc => {
-      try {
-        const videos = doc.querySelectorAll('video');
-        videos.forEach(v => {
-          SC.hookVideo(v);
-          if (v.ownerDocument === document && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
-            if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(v);
-          }
-        });
-      } catch (_) {}
+    const videos = document.querySelectorAll('video');
+    videos.forEach(v => {
+      SC.hookVideo(v);
+      if (v.ownerDocument === document && SC.checkVideoHasSubtitles && SC.checkVideoHasSubtitles(v)) {
+        if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(v);
+      }
     });
   };
 
@@ -655,11 +650,11 @@
    * Sets up a MutationObserver for dynamically added videos and DOM captions.
    */
   SC.setupDOMSubtitleObserver = function() {
-    const observedDocs = new WeakSet();
+    let observed = false;
 
     function observeDocument(doc) {
-      if (!doc || observedDocs.has(doc)) return;
-      observedDocs.add(doc);
+      if (!doc || doc !== document || observed) return;
+      observed = true;
 
       const observer = new MutationObserver((mutations) => {
         let checkVideos = false;
@@ -700,8 +695,6 @@
         }
 
         if (checkVideos) {
-          const currentDocs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
-          currentDocs.forEach(observeDocument);
           SC.scanForVideos();
         }
 
@@ -729,7 +722,6 @@
     }
 
     SC.observeDocument = observeDocument;
-    const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
-    docs.forEach(observeDocument);
+    observeDocument(document);
   };
 })();
