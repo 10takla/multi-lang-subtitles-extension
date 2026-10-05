@@ -227,8 +227,11 @@
           </div>
           <div class="sc-preset-wrap" title="Глобальные пресеты">
             <select class="sc-preset-select" id="sc-preset-select" title="Выбор пресета"></select>
+            <input type="text" class="sc-preset-select" id="sc-preset-name" aria-label="Название пресета" hidden style="display: none">
+            <button type="button" class="sc-btn-icon" id="sc-btn-rename-preset" title="Переименовать пресет" aria-label="Переименовать пресет" hidden style="display: none">✎</button>
             <button type="button" class="sc-btn-icon" id="sc-btn-save-preset" title="Сохранить в текущий пресет">💾</button>
             <button type="button" class="sc-btn-icon" id="sc-btn-add-preset" title="Создать новый именованный пресет">➕</button>
+            <button type="button" class="sc-btn-icon" id="sc-btn-delete-preset" title="Удалить пресет" aria-label="Удалить пресет" disabled hidden style="display: none">🗑</button>
           </div>
           <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
@@ -595,6 +598,23 @@
     const presetSelect = shadow.getElementById('sc-preset-select');
     const savePresetBtn = shadow.getElementById('sc-btn-save-preset');
     const addPresetBtn = shadow.getElementById('sc-btn-add-preset');
+    const deletePresetBtn = shadow.getElementById('sc-btn-delete-preset');
+    const renamePresetBtn = shadow.getElementById('sc-btn-rename-preset');
+    const presetNameInput = shadow.getElementById('sc-preset-name');
+    let renameId = null;
+    let creatingPreset = false;
+    let renameSaving = false;
+    function updateDeletePresetButton() {
+      if (renamePresetBtn) {
+        renamePresetBtn.hidden = creatingPreset || renameId !== null || !presetSelect?.value || presetSelect.value === SC.DEFAULT_PRESET_ID;
+        renamePresetBtn.style.display = renamePresetBtn.hidden ? 'none' : '';
+      }
+      if (deletePresetBtn) {
+        deletePresetBtn.hidden = !presetSelect?.value || presetSelect.value === SC.DEFAULT_PRESET_ID;
+        deletePresetBtn.style.display = deletePresetBtn.hidden ? 'none' : '';
+        deletePresetBtn.disabled = deletePresetBtn.hidden;
+      }
+    }
 
     SC.updatePresetDropdown = async function(selectPresetId = null) {
       if (!presetSelect) return;
@@ -609,11 +629,13 @@
         if (p.id === currentSelected) opt.selected = true;
         presetSelect.appendChild(opt);
       });
+      updateDeletePresetButton();
     };
 
     if (presetSelect) {
       presetSelect.addEventListener('change', async (e) => {
         const chosenId = e.target.value;
+        updateDeletePresetButton();
         if (SC.applyPresetToCurrentSite) {
           await SC.applyPresetToCurrentSite(chosenId);
         }
@@ -630,19 +652,103 @@
       });
     }
 
-    if (addPresetBtn) {
-      addPresetBtn.addEventListener('click', async () => {
-        const name = window.prompt('Введите название нового пресета:');
-        if (!name || !name.trim()) return;
-        const newId = `preset_${Date.now()}`;
-        if (SC.savePreset) {
-          await SC.savePreset(newId, name.trim(), SC.exportConfigurableSettings ? SC.exportConfigurableSettings(true) : null);
-          if (SC.updatePresetDropdown) await SC.updatePresetDropdown(newId);
-          showStatus(`Создан пресет: ${name.trim()}`);
+    if (addPresetBtn && presetNameInput) {
+      addPresetBtn.addEventListener('click', () => beginPresetNameEdit(true));
+    }
+    if (deletePresetBtn) {
+      deletePresetBtn.addEventListener('click', async () => {
+        const id = presetSelect?.value;
+        if (!id || id === SC.DEFAULT_PRESET_ID) return;
+        const name = presetSelect.selectedOptions[0]?.textContent || id;
+        if (!window.confirm(`Удалить пресет „${name}“?`)) return;
+        deletePresetBtn.disabled = true;
+        try {
+          if (await SC.deletePreset(id)) showStatus(`Пресет «${name}» удалён`);
+        } catch (error) {
+          console.error('[SC] Failed to delete preset', error);
+          showStatus('Не удалось удалить пресет');
+        } finally {
+          updateDeletePresetButton();
         }
       });
     }
+    function finishPresetRename() {
+      renameId = null;
+      creatingPreset = false;
+      addPresetBtn.style.display = '';
+      presetNameInput.style.display = 'none';
+      presetNameInput.hidden = true;
+      presetNameInput.disabled = false;
+      presetSelect.style.display = '';
+      [savePresetBtn, addPresetBtn, deletePresetBtn, renamePresetBtn].forEach(btn => {
+        if (btn) btn.disabled = false;
+      });
+      updateDeletePresetButton();
+      presetSelect.focus();
+    }
 
+    function beginPresetNameEdit(create) {
+      const id = presetSelect?.value;
+      if (!create && (!id || id === SC.DEFAULT_PRESET_ID)) return;
+      creatingPreset = create;
+      renameId = create ? null : id;
+      presetNameInput.value = create ? '' : (presetSelect.selectedOptions[0]?.textContent || '');
+      presetNameInput.placeholder = create ? 'Название пресета' : '';
+      presetNameInput.setCustomValidity('');
+      presetSelect.style.display = 'none';
+      renamePresetBtn.hidden = true;
+      renamePresetBtn.style.display = 'none';
+      addPresetBtn.style.display = 'none';
+      presetNameInput.hidden = false;
+      presetNameInput.style.display = '';
+      [savePresetBtn, addPresetBtn, deletePresetBtn, renamePresetBtn].forEach(btn => {
+        if (btn) btn.disabled = true;
+      });
+      presetNameInput.focus();
+      presetNameInput.select();
+    }
+
+    if (renamePresetBtn && presetNameInput) {
+      renamePresetBtn.addEventListener('click', () => beginPresetNameEdit(false));
+      presetNameInput.addEventListener('input', () => presetNameInput.setCustomValidity(''));
+      presetNameInput.addEventListener('keydown', async event => {
+        if (event.key !== 'Enter' && event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (renameSaving) return;
+        if (event.key === 'Escape') {
+          finishPresetRename();
+          return;
+        }
+        renameSaving = true;
+        presetNameInput.disabled = true;
+        try {
+          const create = creatingPreset;
+          if (create) {
+            const name = presetNameInput.value.trim();
+            if (!name) throw new Error('Введите название пресета');
+            const presets = await SC.getPresets();
+            if (Object.values(presets).some(p => p.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
+              throw new Error('Пресет с таким названием уже существует');
+            }
+            const id = `preset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            await SC.savePreset(id, name, SC.exportConfigurableSettings(true));
+            await SC.updatePresetDropdown(id);
+          } else if (!await SC.renamePreset(renameId, presetNameInput.value)) {
+            throw new Error('Пресет недоступен');
+          }
+          finishPresetRename();
+          showStatus(create ? 'Пресет создан' : 'Пресет переименован');
+        } catch (error) {
+          presetNameInput.disabled = false;
+          presetNameInput.setCustomValidity(error.message || 'Не удалось сохранить пресет');
+          presetNameInput.focus();
+          presetNameInput.reportValidity();
+        } finally {
+          renameSaving = false;
+        }
+      });
+    }
     let toastTimer = null;
     function showStatus(text) {
       let toast = shadow.getElementById('sc-toast');

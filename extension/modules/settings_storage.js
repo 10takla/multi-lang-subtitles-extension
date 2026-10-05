@@ -301,6 +301,49 @@
   /**
    * Saves current site settings into the currently selected preset (or default preset).
    */
+  SC.renamePreset = async function(presetId, name) {
+    if (!presetId || presetId === SC.DEFAULT_PRESET_ID) return false;
+    name = String(name || '').trim();
+    if (!name) throw new Error('Введите название пресета');
+    const presets = await SC.getPresets();
+    if (!Object.prototype.hasOwnProperty.call(presets, presetId)) return false;
+    if (Object.values(presets).some(p => p.id !== presetId && p.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      throw new Error('Пресет с таким названием уже существует');
+    }
+    presets[presetId].name = name;
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await new Promise((resolve, reject) => {
+        chrome.storage.local.set({ [STORAGE_KEY_PRESETS]: presets }, () => {
+          const error = chrome.runtime?.lastError;
+          if (error) reject(new Error(error.message));
+          else resolve();
+        });
+      });
+    } else {
+      localStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(presets));
+    }
+    if (SC.updatePresetDropdown) await SC.updatePresetDropdown(presetId);
+    return true;
+  };
+  SC.deletePreset = async function(presetId) {
+    if (!presetId || presetId === SC.DEFAULT_PRESET_ID) return false;
+    const presets = await SC.getPresets();
+    if (!Object.prototype.hasOwnProperty.call(presets, presetId)) return false;
+    delete presets[presetId];
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await new Promise((resolve, reject) => {
+        chrome.storage.local.set({ [STORAGE_KEY_PRESETS]: presets }, () => {
+          const error = chrome.runtime?.lastError;
+          if (error) reject(new Error(error.message));
+          else resolve();
+        });
+      });
+    } else {
+      localStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(presets));
+    }
+    if (SC.updatePresetDropdown) await SC.updatePresetDropdown(SC.DEFAULT_PRESET_ID);
+    return true;
+  };
   SC.saveCurrentSettingsAsGlobalDefaults = function(presetId = null) {
     return new Promise(async (resolve) => {
       const select = SC.shadowRoot?.getElementById('sc-preset-select');
