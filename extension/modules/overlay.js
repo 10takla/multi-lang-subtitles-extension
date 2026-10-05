@@ -117,7 +117,9 @@
           ? activeLine.trackTexts[trackVal]
           : activeLine.text;
         trackText = (trackText || '').trim();
-        if (!trackText) return;
+
+        const isTrackLoading = SC.isTrackLoading ? SC.isTrackLoading(trackVal) : false;
+        if (!trackText && !isTrackLoading) return;
 
         const found = availTracks.find(a => a.value === trackVal);
         let tag = 'ТРЕК';
@@ -129,10 +131,11 @@
           tag = item.trackId.replace('yt:', '').slice(0, 4).toUpperCase();
         }
         const tagHTML = showTags ? `<span class="sc-vol-tag">${SC.escapeHtml(tag)}</span>` : '';
+        const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
           <div class="sc-vol-line sc-vol-track">
             ${tagHTML}
-            <span class="sc-vol-text">${SC.escapeHtml(trackText)}</span>
+            <span class="sc-vol-text">${trackText ? SC.escapeHtml(trackText) : spinnerHTML}</span>
           </div>
         `);
       } else {
@@ -144,10 +147,11 @@
 
         const tag = SC.getLangName(targetLang).slice(0, 3).toUpperCase();
         const tagHTML = showTags ? `<span class="sc-vol-tag">${tag}</span>` : '';
+        const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
           <div class="sc-vol-line sc-vol-trans">
             ${tagHTML}
-            <span class="sc-vol-text">${transText ? SC.escapeHtml(transText) : '<span class="sc-vol-loading">...</span>'}</span>
+            <span class="sc-vol-text">${transText ? SC.escapeHtml(transText) : spinnerHTML}</span>
           </div>
         `);
       }

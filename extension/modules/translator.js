@@ -321,6 +321,11 @@
             if (SC.updateVideoOverlayContent && SC.state.currentActiveLine && SC.state.currentActiveLine.id === l.id) {
               SC.updateVideoOverlayContent();
             }
+          } else {
+            l.translations[item.id] = '';
+            if (SC.updateVideoOverlayContent && SC.state.currentActiveLine && SC.state.currentActiveLine.id === l.id) {
+              SC.updateVideoOverlayContent();
+            }
           }
         });
       }
@@ -376,6 +381,11 @@
                 if (SC.updateTranslationInDOM) {
                   SC.updateTranslationInDOM(line.id, langItem.id, trans);
                 }
+                if (SC.updateVideoOverlayContent && SC.state.currentActiveLine && SC.state.currentActiveLine.id === line.id) {
+                  SC.updateVideoOverlayContent();
+                }
+              } else {
+                line.translations[langItem.id] = '';
                 if (SC.updateVideoOverlayContent && SC.state.currentActiveLine && SC.state.currentActiveLine.id === line.id) {
                   SC.updateVideoOverlayContent();
                 }
