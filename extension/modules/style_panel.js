@@ -108,7 +108,9 @@
           <div class="sc-style-field">
             <label class="sc-style-label">Размер:</label>
             <div class="sc-style-size-row">
+              <button type="button" class="sc-style-btn-step" id="sc-style-size-dec" title="Уменьшить шрифт">A−</button>
               <input type="range" class="sc-style-range" id="sc-style-size-slider" min="60" max="200" step="5" value="${st.fontSizePercent === 'inherit' ? (gFont.fontSizePercent || 100) : st.fontSizePercent}">
+              <button type="button" class="sc-style-btn-step" id="sc-style-size-inc" title="Увеличить шрифт">A+</button>
               <span class="sc-style-val" id="sc-style-size-val">${st.fontSizePercent === 'inherit' ? 'Inherit' : `${st.fontSizePercent}%`}</span>
               <button type="button" class="sc-style-btn-reset" id="sc-style-size-inherit-btn" style="padding: 0 4px; font-size: 9px;">Inh</button>
             </div>
@@ -220,6 +222,33 @@
       st.fontStyle = italicSel.value;
       triggerStyleUpdate();
     });
+
+    const sizeDecBtn = panel.querySelector('#sc-style-size-dec');
+    const sizeIncBtn = panel.querySelector('#sc-style-size-inc');
+
+    if (sizeDecBtn) {
+      sizeDecBtn.addEventListener('click', () => {
+        const cur = (st.fontSizePercent === 'inherit' || !st.fontSizePercent)
+          ? (gFont.fontSizePercent || 100)
+          : (parseInt(st.fontSizePercent, 10) || 100);
+        st.fontSizePercent = Math.max(60, cur - 5);
+        sizeSlider.value = st.fontSizePercent;
+        sizeVal.textContent = `${st.fontSizePercent}%`;
+        triggerStyleUpdate();
+      });
+    }
+
+    if (sizeIncBtn) {
+      sizeIncBtn.addEventListener('click', () => {
+        const cur = (st.fontSizePercent === 'inherit' || !st.fontSizePercent)
+          ? (gFont.fontSizePercent || 100)
+          : (parseInt(st.fontSizePercent, 10) || 100);
+        st.fontSizePercent = Math.min(200, cur + 5);
+        sizeSlider.value = st.fontSizePercent;
+        sizeVal.textContent = `${st.fontSizePercent}%`;
+        triggerStyleUpdate();
+      });
+    }
 
     sizeSlider.addEventListener('input', () => {
       st.fontSizePercent = parseInt(sizeSlider.value, 10) || 100;
@@ -506,7 +535,9 @@
           <div class="sc-style-field">
             <label class="sc-style-label">Размер:</label>
             <div class="sc-style-size-row">
+              <button type="button" class="sc-style-btn-step" id="sc-gstyle-size-dec" title="Уменьшить шрифт">A−</button>
               <input type="range" class="sc-style-range" id="sc-gstyle-size" min="60" max="200" step="5" value="${gFont.fontSizePercent || 100}">
+              <button type="button" class="sc-style-btn-step" id="sc-gstyle-size-inc" title="Увеличить шрифт">A+</button>
               <span class="sc-style-val" id="sc-gstyle-size-val">${gFont.fontSizePercent || 100}%</span>
             </div>
           </div>
@@ -662,6 +693,25 @@
     fontSel.addEventListener('change', applyGlobalChanges);
     weightSel.addEventListener('change', applyGlobalChanges);
     styleSel.addEventListener('change', applyGlobalChanges);
+    const sizeDecBtn = panel.querySelector('#sc-gstyle-size-dec');
+    const sizeIncBtn = panel.querySelector('#sc-gstyle-size-inc');
+
+    if (sizeDecBtn) {
+      sizeDecBtn.addEventListener('click', () => {
+        const cur = parseInt(sizeRange.value, 10) || 100;
+        sizeRange.value = Math.max(60, cur - 5);
+        applyGlobalChanges();
+      });
+    }
+
+    if (sizeIncBtn) {
+      sizeIncBtn.addEventListener('click', () => {
+        const cur = parseInt(sizeRange.value, 10) || 100;
+        sizeRange.value = Math.min(200, cur + 5);
+        applyGlobalChanges();
+      });
+    }
+
     sizeRange.addEventListener('input', applyGlobalChanges);
     colorInput.addEventListener('input', applyGlobalChanges);
 

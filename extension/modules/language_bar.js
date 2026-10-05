@@ -153,40 +153,42 @@
       dragHandle.addEventListener('pointercancel', endPointerDrag);
       orderControls.appendChild(dragHandle);
 
-      // Up / Down arrow buttons for order change styled as sc-btn-mini (ai_instrs/_.md:42)
-      const btnUp = document.createElement('button');
-      btnUp.type = 'button';
-      btnUp.className = 'sc-btn-mini';
-      btnUp.title = 'Переместить вверх';
-      btnUp.textContent = '▲';
-      btnUp.disabled = index === 0;
-      btnUp.addEventListener('click', (e) => {
+      // Single up/down/up-down arrow button for order change (ai_instrs/_.md:43)
+      const btnOrder = document.createElement('button');
+      btnOrder.type = 'button';
+      btnOrder.className = 'sc-btn-mini sc-btn-order';
+      const isFirst = index === 0;
+      const isLast = index === SC.state.languages.length - 1;
+
+      if (isFirst && !isLast) {
+        btnOrder.textContent = '▼';
+        btnOrder.title = 'Переместить вниз';
+      } else if (isLast && !isFirst) {
+        btnOrder.textContent = '▲';
+        btnOrder.title = 'Переместить вверх';
+      } else if (!isFirst && !isLast) {
+        btnOrder.textContent = '⇅';
+        btnOrder.title = 'Переместить (клик: вниз, Shift+клик: вверх)';
+      } else {
+        btnOrder.textContent = '⇅';
+        btnOrder.disabled = true;
+      }
+
+      btnOrder.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (index > 0) {
+        if (SC.state.languages.length <= 1) return;
+        const moveUp = e.shiftKey ? true : (index === SC.state.languages.length - 1);
+        if (moveUp && index > 0) {
           const moved = SC.state.languages.splice(index, 1)[0];
           SC.state.languages.splice(index - 1, 0, moved);
-          SC.renderLanguageList();
-          if (SC.renderAllLines) SC.renderAllLines();
-        }
-      });
-      orderControls.appendChild(btnUp);
-
-      const btnDown = document.createElement('button');
-      btnDown.type = 'button';
-      btnDown.className = 'sc-btn-mini';
-      btnDown.title = 'Переместить вниз';
-      btnDown.textContent = '▼';
-      btnDown.disabled = index === SC.state.languages.length - 1;
-      btnDown.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (index < SC.state.languages.length - 1) {
+        } else if (!moveUp && index < SC.state.languages.length - 1) {
           const moved = SC.state.languages.splice(index, 1)[0];
           SC.state.languages.splice(index + 1, 0, moved);
-          SC.renderLanguageList();
-          if (SC.renderAllLines) SC.renderAllLines();
         }
+        SC.renderLanguageList();
+        if (SC.renderAllLines) SC.renderAllLines();
       });
-      orderControls.appendChild(btnDown);
+      orderControls.appendChild(btnOrder);
 
       row.appendChild(orderControls);
 
@@ -387,7 +389,6 @@
         bufferWrap.innerHTML = `
           <span class="sc-buffer-label">Буфер:</span>
           <input type="text" inputmode="numeric" pattern="[0-9]*" class="sc-buffer-input" value="${item.bufferChars}" title="Буфер упреждения перевода в символах (макс. ${engineMax})">
-          <span class="sc-buffer-unit">симв</span>
         `;
         const bufferInput = bufferWrap.querySelector('.sc-buffer-input');
 
