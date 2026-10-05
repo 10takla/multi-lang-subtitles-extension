@@ -3,6 +3,12 @@
   "name": "Video Subtitles Capturer",
   "version": "1.0.0",
   "description": "Захват всех субтитров к видео на веб-страницах и отображение их строка за строкой.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "subtitles-capturer@local",
+      "strict_min_version": "109.0"
+    }
+  },
   "permissions": [
     "activeTab",
     "storage"
@@ -79,6 +85,9 @@
     }
   ],
   "background": {
+    "scripts": [
+      "background.js"
+    ],
     "service_worker": "background.js"
   }
 }

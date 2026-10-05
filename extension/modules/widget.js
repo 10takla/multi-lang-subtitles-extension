@@ -182,15 +182,17 @@
       }
     };
 
-    window.addEventListener('mousemove', onPointerMove, { passive: true });
-    window.addEventListener('mouseleave', onPointerLeave, { passive: true });
-    document.addEventListener('mouseleave', onPointerLeave, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerdown', onPointerMove, { passive: true });
+    window.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    document.addEventListener('pointerleave', onPointerLeave, { passive: true });
 
     if (SC.getAccessibleDocuments) {
       SC.getAccessibleDocuments().forEach(doc => {
         try {
-          doc.addEventListener('mousemove', onPointerMove, { passive: true });
-          doc.addEventListener('mouseleave', onPointerLeave, { passive: true });
+          doc.addEventListener('pointermove', onPointerMove, { passive: true });
+          doc.addEventListener('pointerdown', onPointerMove, { passive: true });
+          doc.addEventListener('pointerleave', onPointerLeave, { passive: true });
         } catch (_) {}
       });
     }
@@ -294,13 +296,15 @@
       }
     };
 
-    video.addEventListener('mousemove', onDirectMouseMove, { passive: true });
-    video.addEventListener('mouseenter', onDirectMouseMove, { passive: true });
-    video.addEventListener('mouseleave', onDirectMouseLeave, { passive: true });
+    video.addEventListener('pointermove', onDirectMouseMove, { passive: true });
+    video.addEventListener('pointerenter', onDirectMouseMove, { passive: true });
+    video.addEventListener('pointerleave', onDirectMouseLeave, { passive: true });
+    video.addEventListener('pointerdown', onDirectMouseMove, { passive: true });
 
-    iconBtn.addEventListener('mousemove', onDirectMouseMove, { passive: true });
-    iconBtn.addEventListener('mouseenter', onDirectMouseMove, { passive: true });
-    iconBtn.addEventListener('mouseleave', onDirectMouseLeave, { passive: true });
+    iconBtn.addEventListener('pointermove', onDirectMouseMove, { passive: true });
+    iconBtn.addEventListener('pointerenter', onDirectMouseMove, { passive: true });
+    iconBtn.addEventListener('pointerleave', onDirectMouseLeave, { passive: true });
+    iconBtn.addEventListener('pointerdown', onDirectMouseMove, { passive: true });
 
     const iconData = {
       video,
@@ -316,12 +320,14 @@
         video.removeEventListener('playing', onPlayStateChange);
         video.removeEventListener('pause', onPlayStateChange);
         video.removeEventListener('ended', onPlayStateChange);
-        video.removeEventListener('mousemove', onDirectMouseMove);
-        video.removeEventListener('mouseenter', onDirectMouseMove);
-        video.removeEventListener('mouseleave', onDirectMouseLeave);
-        iconBtn.removeEventListener('mousemove', onDirectMouseMove);
-        iconBtn.removeEventListener('mouseenter', onDirectMouseMove);
-        iconBtn.removeEventListener('mouseleave', onDirectMouseLeave);
+        video.removeEventListener('pointermove', onDirectMouseMove);
+        video.removeEventListener('pointerenter', onDirectMouseMove);
+        video.removeEventListener('pointerleave', onDirectMouseLeave);
+        video.removeEventListener('pointerdown', onDirectMouseMove);
+        iconBtn.removeEventListener('pointermove', onDirectMouseMove);
+        iconBtn.removeEventListener('pointerenter', onDirectMouseMove);
+        iconBtn.removeEventListener('pointerleave', onDirectMouseLeave);
+        iconBtn.removeEventListener('pointerdown', onDirectMouseMove);
       }
     };
 
@@ -682,11 +688,42 @@
         }
       });
 
-      // Drag handle
+      // Drag handle with pointer events for mobile touch support
       const dragHandle = document.createElement('span');
       dragHandle.className = 'sc-lang-drag';
       dragHandle.title = 'Перетащите для изменения порядка';
       dragHandle.textContent = '⠿';
+      dragHandle.style.touchAction = 'none';
+
+      let isPointerDragging = false;
+      dragHandle.addEventListener('pointerdown', (e) => {
+        isPointerDragging = true;
+        row.classList.add('sc-dragging');
+        try { dragHandle.setPointerCapture(e.pointerId); } catch (_) {}
+        e.stopPropagation();
+      });
+      dragHandle.addEventListener('pointermove', (e) => {
+        if (!isPointerDragging) return;
+        const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.sc-lang-item');
+        if (targetEl && targetEl !== row && targetEl.dataset.index !== undefined) {
+          const fromIdx = index;
+          const toIdx = parseInt(targetEl.dataset.index, 10);
+          if (!isNaN(toIdx) && fromIdx !== toIdx) {
+            const moved = SC.state.languages.splice(fromIdx, 1)[0];
+            SC.state.languages.splice(toIdx, 0, moved);
+            SC.renderLanguageList();
+            SC.renderAllLines();
+          }
+        }
+      });
+      const endPointerDrag = (e) => {
+        if (!isPointerDragging) return;
+        isPointerDragging = false;
+        row.classList.remove('sc-dragging');
+        try { dragHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+      };
+      dragHandle.addEventListener('pointerup', endPointerDrag);
+      dragHandle.addEventListener('pointercancel', endPointerDrag);
       row.appendChild(dragHandle);
 
       // Visibility toggle button (ai_instrs/_.md)
@@ -835,15 +872,18 @@
         controls.appendChild(targetSelect);
 
         // Translation engine select (ai_instrs/_.md:21-25)
-        item.engine = item.engine || 'google';
-        const engineSelect = document.createElement('select');
-        engineSelect.className = 'sc-lang-select sc-engine-select';
-        engineSelect.title = 'Выбор движка перевода (по умолчанию: Google Translate)';
-        const engines = SC.TRANSLATION_ENGINES || [
+        const engines = (SC.getAvailableEngines ? SC.getAvailableEngines() : SC.TRANSLATION_ENGINES) || [
           { id: 'google', name: 'Google', maxChars: 1800 },
           { id: 'yandex', name: 'Yandex', maxChars: 10000 },
           { id: 'chrome', name: 'Chrome AI', maxChars: 4000 }
         ];
+        if (!engines.some(e => e.id === item.engine)) {
+          item.engine = engines[0]?.id || 'google';
+        }
+        item.engine = item.engine || 'google';
+        const engineSelect = document.createElement('select');
+        engineSelect.className = 'sc-lang-select sc-engine-select';
+        engineSelect.title = 'Выбор движка перевода (по умолчанию: Google Translate)';
         engines.forEach(eng => {
           const opt = document.createElement('option');
           opt.value = eng.id;
@@ -1319,7 +1359,7 @@
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
 
-    handle.addEventListener('mousedown', (e) => {
+    handle.addEventListener('pointerdown', (e) => {
       if (e.target.closest('button, select, input, a')) return;
       const video = SC.getActiveVideo();
       if (!video) return;
@@ -1332,7 +1372,13 @@
       initialLeft = rect.left;
       initialTop = rect.top;
 
-      const onMouseMove = (ev) => {
+      if (handle.setPointerCapture && e.pointerId !== undefined) {
+        try {
+          handle.setPointerCapture(e.pointerId);
+        } catch (_) {}
+      }
+
+      const onPointerMove = (ev) => {
         if (!isDragging) return;
         const v = SC.getActiveVideo();
         if (!v) return;
@@ -1366,14 +1412,22 @@
         SC.state.widgetVideoRelY = newTop - vRect.top;
       };
 
-      const onMouseUp = () => {
+      const onPointerUp = (ev) => {
+        if (!isDragging) return;
         isDragging = false;
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
+        if (handle.releasePointerCapture && ev?.pointerId !== undefined) {
+          try {
+            handle.releasePointerCapture(ev.pointerId);
+          } catch (_) {}
+        }
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
       };
 
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
     });
   };
 })();

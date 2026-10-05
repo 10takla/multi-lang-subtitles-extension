@@ -43,6 +43,20 @@
     return SC.ENGINE_MAX_CHARS[engine] || 1800;
   };
 
+  SC.isChromeAIAvailable = function() {
+    return Boolean(
+      typeof window !== 'undefined' && (
+        (window.translation && typeof window.translation.createTranslator === 'function') ||
+        (window.ai && window.ai.translator && typeof window.ai.translator.create === 'function')
+      )
+    );
+  };
+
+  SC.getAvailableEngines = function() {
+    const hasChromeAI = SC.isChromeAIAvailable ? SC.isChromeAIAvailable() : false;
+    return SC.TRANSLATION_ENGINES.filter(eng => eng.id !== 'chrome' || hasChromeAI);
+  };
+
   SC.getDefaultBufferChars = function(engine = 'google') {
     return Math.min(1000, SC.getEngineMaxChars(engine));
   };
