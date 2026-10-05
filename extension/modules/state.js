@@ -430,4 +430,28 @@
       }
     } catch (_) {}
   };
+
+  // Helper to render loading spinner under font-size (ai_instrs/_.md:48)
+  SC.getLoadingSpinnerHtml = function() {
+    return '<span class="sc-vol-loading" role="status" aria-label="Загрузка">' +
+      '<svg class="sc-loading-spinner" viewBox="0 0 24 24" width="1em" height="1em" fill="none" style="vertical-align:middle;animation:sc-spin 0.8s linear infinite;">' +
+        '<circle cx="12" cy="12" r="9" stroke="rgba(255, 255, 255, 0.25)" stroke-width="3"></circle>' +
+        '<path d="M12 3 a 9 9 0 0 1 9 9" stroke="#60a5fa" stroke-width="3" stroke-linecap="round"></path>' +
+      '</svg>' +
+    '</span>';
+  };
+
+  SC.loadingTracks = new Set();
+  SC.isTrackLoading = function(trackId) {
+    if (!trackId || !SC.loadingTracks) return false;
+    return SC.loadingTracks.has(trackId);
+  };
+  SC.setTrackLoading = function(trackId, isLoading) {
+    if (!trackId) return;
+    if (!SC.loadingTracks) SC.loadingTracks = new Set();
+    if (isLoading) SC.loadingTracks.add(trackId);
+    else SC.loadingTracks.delete(trackId);
+    if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+  };
 })();
+

@@ -116,8 +116,41 @@
   color: #e0f2fe !important;
 }
 
+/* Loading Spinner Indicator (ai_instrs/_.md:48) */
 .sc-vol-loading {
-  color: #94a3b8 !important;
-  font-style: italic !important;
-  font-size: 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  color: #93c5fd !important;
 }
+
+.sc-loading-spinner {
+  display: inline-block !important;
+  width: 1em !important;
+  height: 1em !important;
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+  animation: sc-spin 0.8s linear infinite !important;
+}
+
+span.sc-loading-spinner {
+  border: 2px solid rgba(255, 255, 255, 0.25) !important;
+  border-top-color: #60a5fa !important;
+  border-radius: 50% !important;
+}
+
+svg.sc-loading-spinner {
+  border: none !important;
+}
+
+@keyframes sc-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+

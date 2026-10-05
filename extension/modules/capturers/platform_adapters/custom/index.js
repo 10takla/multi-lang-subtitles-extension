@@ -78,6 +78,7 @@
    */
   SC.loadCustomSubtitleUrl = async function(url, trackId, label = 'Субтитры') {
     if (!url || SC.customTrackCues.has(trackId)) return;
+    if (SC.setTrackLoading) SC.setTrackLoading(trackId, true);
     try {
       const res = await fetch(url);
       if (!res.ok) return;
@@ -103,7 +104,9 @@
           SC.prefetchUpcomingTranslations(vTime, 60);
         }
       }
-    } catch (_) {}
+    } catch (_) {} finally {
+      if (SC.setTrackLoading) SC.setTrackLoading(trackId, false);
+    }
   };
 
   /**

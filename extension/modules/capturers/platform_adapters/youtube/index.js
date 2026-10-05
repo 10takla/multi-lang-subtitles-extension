@@ -288,6 +288,7 @@
     if (!track || !track.baseUrl) return;
     const tId = trackId || `yt:${track.languageCode || ''}`;
 
+    if (SC.setTrackLoading) SC.setTrackLoading(tId, true);
     try {
       let fetchUrl = track.baseUrl;
       try {
@@ -363,6 +364,8 @@
       }
     } catch (err) {
       console.warn('Timed text load error:', err);
+    } finally {
+      if (SC.setTrackLoading) SC.setTrackLoading(tId, false);
     }
   };
 

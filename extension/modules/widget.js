@@ -521,6 +521,11 @@
       .sc-switch-slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #fff; border-radius: 50%; transition: 0.2s; }
       .sc-switch input:checked + .sc-switch-slider { background-color: #1877f2; }
       .sc-switch input:checked + .sc-switch-slider:before { transform: translateX(12px); }
+      .sc-vol-loading { display: inline-flex !important; align-items: center !important; justify-content: center !important; vertical-align: middle !important; line-height: 1 !important; color: #93c5fd !important; }
+      .sc-loading-spinner { display: inline-block !important; width: 1em !important; height: 1em !important; box-sizing: border-box !important; vertical-align: middle !important; animation: sc-spin 0.8s linear infinite !important; }
+      span.sc-loading-spinner { border: 2px solid rgba(255, 255, 255, 0.25) !important; border-top-color: #60a5fa !important; border-radius: 50% !important; }
+      svg.sc-loading-spinner { border: none !important; }
+      @keyframes sc-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     `;
     shadow.appendChild(baseStyle);
 
