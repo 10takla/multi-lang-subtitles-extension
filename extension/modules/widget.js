@@ -650,10 +650,14 @@
         toast = document.createElement('div');
         toast.id = 'sc-toast';
         toast.className = 'sc-toast';
-        if (headerEl) headerEl.appendChild(toast);
-        else if (SC.widgetEl) SC.widgetEl.appendChild(toast);
+        if (SC.widgetEl) SC.widgetEl.appendChild(toast);
         else shadow.appendChild(toast);
+      } else if (SC.widgetEl && toast.parentElement !== SC.widgetEl) {
+        SC.widgetEl.appendChild(toast);
       }
+
+      toast.style.left = '';
+      toast.style.top = '';
       toast.textContent = text;
       toast.classList.add('sc-toast-visible');
       if (toastTimer) clearTimeout(toastTimer);

@@ -15,8 +15,18 @@
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sc-widget > :first-child {
+  border-top-left-radius: 11px;
+  border-top-right-radius: 11px;
+}
+
+.sc-widget > :last-child {
+  border-bottom-left-radius: 11px;
+  border-bottom-right-radius: 11px;
 }
 
 .sc-widget.sc-hidden {
@@ -217,30 +227,30 @@
   transform: translateX(14px);
 }
 
-/* Toast */
+/* Toast (floats right above widget panel) */
 .sc-toast {
   position: absolute;
-  top: 50%;
+  top: -34px;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.95);
+  transform: translateX(-50%) translateY(4px) scale(0.96);
   background: rgba(15, 23, 42, 0.96);
   border: 1px solid rgba(96, 165, 250, 0.5);
   color: var(--sc-accent-blue, #60a5fa);
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.15s ease;
-  z-index: 100;
+  z-index: 2147483647;
   white-space: nowrap;
 }
 
 .sc-toast.sc-toast-visible {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translateX(-50%) translateY(0) scale(1);
 }
 
 /* Preset Controls in Header (ai_instrs/_.md:41-46) */
