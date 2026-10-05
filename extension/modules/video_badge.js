@@ -327,7 +327,7 @@
       const maxTop = Math.max(minTop, visibleBottom - iconH - pad);
 
       const left = Math.max(minLeft, Math.min(maxLeft, visibleRight - iconW - pad));
-      const top = Math.max(minTop, Math.min(maxTop, visibleTop + pad));
+      const top = SC.isMobilePanel?.() ? rect.top + pad : Math.max(minTop, Math.min(maxTop, visibleTop + pad));
 
       btn.style.display = 'flex';
       btn.style.top = `${Math.round(top)}px`;

@@ -193,6 +193,17 @@
    * Applies loaded settings onto SC.state without overwriting subtitlesEnabled.
    * Requirement: ai_instrs/_.md:46 "Применяй локальные настройки сайта, а для отсутствующих значений используй пресет «По умолчанию»."
    */
+  function mergeSettingsInPlace(target, values) {
+    for (const [key, value] of Object.entries(values)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (!target[key] || typeof target[key] !== 'object' || Array.isArray(target[key])) target[key] = {};
+        mergeSettingsInPlace(target[key], value);
+      } else {
+        target[key] = value;
+      }
+    }
+    return target;
+  }
   SC.applyConfigurableSettings = function(siteSettings, defaultPreset) {
     const s = SC.state;
     if (!s) return;
@@ -211,16 +222,16 @@
     if (typeof merged.autoScroll === 'boolean') s.autoScroll = merged.autoScroll;
 
     if (merged.globalStyles && typeof merged.globalStyles === 'object') {
-      s.globalStyles = deepMerge(s.globalStyles || {}, merged.globalStyles);
+      s.globalStyles = mergeSettingsInPlace(s.globalStyles || {}, merged.globalStyles);
     }
 
     if (Array.isArray(merged.languages) && merged.languages.length > 0) {
-      s.languages = merged.languages.map(l => ({
-        ...l,
-        visible: l.visible !== false
-      }));
+      const current = new Map((s.languages || []).map(item => [item.id, item]));
+      s.languages = merged.languages.map(l => {
+        const item = current.get(l.id) || {};
+        return mergeSettingsInPlace(item, { ...l, visible: l.visible !== false });
+      });
     }
-
     // Refresh UI components
     if (SC.syncSettingsControls) SC.syncSettingsControls();
     if (SC.syncPositionSliders) SC.syncPositionSliders();
@@ -533,7 +544,12 @@
               const defaultPreset = presets[SC.DEFAULT_PRESET_ID]?.settings || SC.getBuiltInDefaultSettings();
               const sites = res?.[STORAGE_KEY_SITES] || {};
               const siteConfig = sites[curOrigin] || null;
-              SC.applyConfigurableSettings(siteConfig, defaultPreset);
+              // Own autosaves already reflect the current state. Replacing it detaches
+              // style objects referenced by the open editor's event handlers.
+              const currentConfig = SC.exportConfigurableSettings(false);
+              if (!siteConfig || JSON.stringify(siteConfig) !== JSON.stringify(currentConfig)) {
+                SC.applyConfigurableSettings(siteConfig, defaultPreset);
+              }
               if (SC.updatePresetDropdown) SC.updatePresetDropdown();
             });
           }

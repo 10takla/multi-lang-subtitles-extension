@@ -7,6 +7,7 @@
   window.__SC = window.__SC || {};
   const SC = window.__SC;
 
+  SC.isMobilePanel = () => window.matchMedia('(max-width: 640px), (pointer: coarse) and (max-width: 960px)').matches;
   SC.hostEl = null;
   SC.shadowRoot = null;
   SC.widgetEl = null;
@@ -38,6 +39,7 @@
     if (SC.launcherBtn) {
       SC.launcherBtn.classList.add('sc-hidden');
     }
+    if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
     if (SC.updateVideoIconsState) SC.updateVideoIconsState();
     if (SC.state.autoScroll && SC.scrollListToBottom) {
       SC.scrollListToBottom();
@@ -47,10 +49,12 @@
 
   // Close control panel
   SC.closeWidget = function() {
+    if (SC.finishMobilePreview) SC.finishMobilePreview();
     SC.state.widgetVisible = false;
     if (SC.widgetEl) {
       SC.widgetEl.classList.add('sc-hidden');
     }
+    if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
     if (SC.updateVideoIconsState) SC.updateVideoIconsState();
     if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
   };
@@ -72,6 +76,10 @@
 
     SC.widgetEl.classList.remove('sc-hidden');
 
+    if (SC.isMobilePanel()) {
+      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '70dvh'});
+      return;
+    }
     const pad = 6;
     const vTop = Math.max(0, vRect.top);
     const vBottom = Math.min(window.innerHeight, vRect.bottom);
@@ -611,6 +619,24 @@
       });
     }
     // Preset dropdown and buttons (ai_instrs/_.md:41-46)
+    SC.finishMobilePreview = function() {
+      SC.mobilePreview = false;
+      SC.widgetEl.classList.remove('sc-mobile-preview', 'sc-mobile-preview-position');
+      shadow.querySelectorAll('.sc-preview-field').forEach(el => el.classList.remove('sc-preview-field'));
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      if (SC.updateWidgetPosition) SC.updateWidgetPosition();
+    };
+    const mobileStylesPanel = shadow.getElementById('sc-styles-panel');
+    new MutationObserver(() => {
+      SC.widgetEl.classList.toggle('sc-mobile-styles', !mobileStylesPanel.classList.contains('sc-hidden'));
+      SC.mobilePreview = SC.isMobilePanel() && !mobileStylesPanel.classList.contains('sc-hidden');
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+    }).observe(mobileStylesPanel, {attributes: true, attributeFilter: ['class']});
+    window.matchMedia('(max-width: 640px), (pointer: coarse) and (max-width: 960px)').addEventListener('change', () => {
+      SC.finishMobilePreview();
+      SC.updateWidgetPosition();
+    });
     const presetSelect = shadow.getElementById('sc-preset-select');
     const savePresetBtn = shadow.getElementById('sc-btn-save-preset');
     const addPresetBtn = shadow.getElementById('sc-btn-add-preset');
@@ -619,6 +645,22 @@
     const presetNameInput = shadow.getElementById('sc-preset-name');
     const presetMenuBtn = shadow.getElementById('sc-btn-preset-menu');
     const presetMenu = shadow.getElementById('sc-preset-menu');
+    function syncMobileHeader() {
+      const mobile = SC.isMobilePanel();
+      if (mobile) {
+        savePresetBtn.textContent = 'Сохранить';
+        langTagsBtn.innerHTML = '<span aria-hidden="true" style="font-size:11px;font-weight:600">[EN]</span>';
+        shadow.getElementById('sc-btn-minimize').before(langTagsBtn);
+        presetMenu.prepend(savePresetBtn);
+      } else {
+        savePresetBtn.textContent = '💾';
+        langTagsBtn.innerHTML = '<span aria-hidden="true" style="font-size:11px;font-weight:600">[EN]</span>';
+        presetMenuBtn.before(savePresetBtn);
+        shadow.getElementById('sc-btn-minimize').before(langTagsBtn);
+      }
+    }
+    syncMobileHeader();
+    window.matchMedia('(max-width: 640px), (pointer: coarse) and (max-width: 960px)').addEventListener('change', syncMobileHeader);
     function closePresetMenu() {
       presetMenu.hidden = true;
       presetMenuBtn.setAttribute('aria-expanded', 'false');
@@ -923,6 +965,7 @@
     let initialLeft = 0, initialTop = 0;
 
     handle.addEventListener('pointerdown', (e) => {
+      if (SC.isMobilePanel()) return;
       if (e.target.closest('button, select, input, a, label, .sc-switch, .sc-subtitles-toggle-wrap')) return;
       const video = SC.getActiveVideo ? SC.getActiveVideo() : null;
       if (!video) return;
@@ -949,7 +992,11 @@
         const vRect = v.getBoundingClientRect();
         const elW = element.offsetWidth;
         const elH = element.offsetHeight;
-        const pad = 6;
+        if (SC.isMobilePanel()) {
+      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '70dvh'});
+      return;
+    }
+    const pad = 6;
 
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;

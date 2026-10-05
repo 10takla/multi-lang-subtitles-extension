@@ -105,7 +105,7 @@
   SC.updateVideoOverlayPosition = function() {
     if (!SC.overlayEl) return;
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
-    if (!video || video.ownerDocument !== document || !SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) {
+    if (!video || video.ownerDocument !== document || ((!SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) && !(SC.mobilePreview && SC.isMobilePanel?.()))) {
       SC.overlayEl.classList.add('sc-hidden');
       if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
       return;
@@ -139,7 +139,7 @@
 
     // Alignment of subtitle list text (ai_instrs/_.md:16, default left)
     const textAlign = gStyles.textAlign || 'left';
-    SC.overlayEl.style.textAlign = textAlign;
+    SC.overlayEl.style.setProperty('text-align', textAlign, 'important');
 
     // Apply global sub-list background and gap (ai_instrs/_.md:12-14)
     const subListBg = gStyles.subListBg || {};
@@ -148,7 +148,7 @@
       const lineGap = gStyles.lineGap !== undefined ? `${gStyles.lineGap}px` : '3px';
       linesContainer.style.setProperty('--sc-overlay-gap', lineGap);
       linesContainer.style.gap = lineGap;
-      linesContainer.style.textAlign = textAlign;
+      linesContainer.style.setProperty('text-align', textAlign, 'important');
       linesContainer.style.alignItems = textAlign === 'center' ? 'center' : (textAlign === 'right' ? 'flex-end' : 'flex-start');
     }
 
@@ -201,8 +201,12 @@
     if (!linesContainer) return;
 
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
-    const activeLine = SC.state.currentActiveLine;
-    if (!video || video.ownerDocument !== document || !activeLine || SC.state.subtitlesEnabled === false) {
+    const preview = Boolean(SC.mobilePreview && SC.isMobilePanel?.());
+    const activeLine = SC.state.currentActiveLine || (preview ? {
+      text: 'Пример субтитров для настройки',
+      translations: Object.fromEntries((SC.state.languages || []).map(item => [item.id, 'Subtitle preview / Пример перевода']))
+    } : null);
+    if (!video || video.ownerDocument !== document || !activeLine || (SC.state.subtitlesEnabled === false && !preview)) {
       linesContainer.innerHTML = '';
       SC.overlayEl.classList.add('sc-hidden');
       return;
