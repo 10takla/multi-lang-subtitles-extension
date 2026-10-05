@@ -189,6 +189,7 @@
       if (SC.renderAllLines) SC.renderAllLines();
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+      if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
     };
 
     presetSel.addEventListener('change', () => {
@@ -617,6 +618,7 @@
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
       if (SC.renderAllLines) SC.renderAllLines();
+      if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
     };
 
     // Subgroup visibility toggles (ai_instrs/_.md:12-13)

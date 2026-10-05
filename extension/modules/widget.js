@@ -225,6 +225,7 @@
               <span class="sc-switch-slider"></span>
             </label>
           </div>
+          <button class="sc-btn-icon" id="sc-btn-save-defaults" title="Сохранить настройки как глобальные по умолчанию (для всех новых сайтов)">💾</button>
           <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
           <button class="sc-btn-icon" id="sc-btn-minimize" title="Свернуть">_</button>
@@ -291,6 +292,7 @@
     });
 
     SC.setupWidgetEvents();
+    if (SC.initSettings) SC.initSettings();
     if (SC.renderLanguageList) SC.renderLanguageList();
     SC.setupDraggable(widget, shadow.getElementById('sc-header'));
   };
@@ -441,12 +443,14 @@
       SC.state.overlayPosX = val;
       if (inputX) inputX.value = val;
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
     });
 
     attachPointerDrag(sliderY, (val) => {
       SC.state.overlayPosY = val;
       if (inputY) inputY.value = val;
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
     });
 
     if (sliderX && inputX) {
@@ -454,6 +458,7 @@
         SC.state.overlayPosX = Number(sliderX.value);
         inputX.value = SC.state.overlayPosX;
         if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
     }
 
@@ -462,6 +467,7 @@
         SC.state.overlayPosY = Number(sliderY.value);
         inputY.value = SC.state.overlayPosY;
         if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
     }
 
@@ -481,6 +487,7 @@
           SC.state.overlayPosY = val;
         }
         if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       };
 
       input.addEventListener('input', () => {
@@ -562,6 +569,7 @@
         updateLockUI();
         if (SC.renderLanguageList) SC.renderLanguageList();
         showStatus(SC.state.moveLocked ? 'Перемещение заблокировано' : 'Перемещение разблокировано');
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
     }
 
@@ -575,6 +583,19 @@
           : 'Тег языка перед субтитрами на видео: Выкл (по умолчанию)';
         showStatus(SC.state.showLanguageTags ? 'Теги языка: Вкл' : 'Теги языка: Выкл');
         if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
+      });
+    }
+
+    // Save settings as global defaults button (ai_instrs/_.md:41)
+    const saveDefaultsBtn = shadow.getElementById('sc-btn-save-defaults');
+    if (saveDefaultsBtn) {
+      saveDefaultsBtn.addEventListener('click', () => {
+        if (SC.saveCurrentSettingsAsGlobalDefaults) {
+          SC.saveCurrentSettingsAsGlobalDefaults().then(() => {
+            showStatus('Настройки сохранены по умолчанию');
+          });
+        }
       });
     }
 
@@ -596,6 +617,7 @@
         toast.classList.remove('sc-toast-visible');
       }, 1800);
     }
+    SC.showToast = showStatus;
 
     // Clear history
     if (clearBtn) {

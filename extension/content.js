@@ -38,6 +38,10 @@
     'modules/capturers/render/hardsub/index.js',
     'modules/capturers.js',
     'modules/overlay.js',
+    'modules/video_badge.js',
+    'modules/language_bar.js',
+    'modules/style_panel.js',
+    'modules/settings_storage.js',
     'modules/widget.js',
     'modules/cross_frame.js',
     'modules/popup_bridge.js',
@@ -45,6 +49,7 @@
   ];
 
   function startExtension() {
+    if (SC.initSettings) SC.initSettings();
     if (SC.initYouTubeBridge) SC.initYouTubeBridge();
     if (SC.initInPageWidget) SC.initInPageWidget();
     if (SC.initCrossFrameSync) SC.initCrossFrameSync();

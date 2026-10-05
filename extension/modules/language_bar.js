@@ -36,6 +36,7 @@
       SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, newSelector.bufferChars);
     }
     if (SC.renderAllLines) SC.renderAllLines();
+    if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
   };
 
   // Render language selectors list in the widget header
@@ -107,6 +108,7 @@
           SC._activeToggleDragIndex = null;
           SC.renderLanguageList();
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
         }
       });
 
@@ -151,6 +153,7 @@
           SC.state.languages.splice(toIdx, 0, moved);
           SC.renderLanguageList();
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
           return;
         }
 
@@ -183,6 +186,7 @@
               SC.state.languages.splice(index + 1, 0, moved);
               SC.renderLanguageList();
               if (SC.renderAllLines) SC.renderAllLines();
+              if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
             }
           });
           orderControls.appendChild(btnDown);
@@ -199,6 +203,7 @@
               SC.state.languages.splice(index - 1, 0, moved);
               SC.renderLanguageList();
               if (SC.renderAllLines) SC.renderAllLines();
+              if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
             }
           });
           orderControls.appendChild(btnUp);
@@ -218,6 +223,7 @@
               SC.state.languages.splice(index - 1, 0, moved);
               SC.renderLanguageList();
               if (SC.renderAllLines) SC.renderAllLines();
+              if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
             }
           });
 
@@ -233,6 +239,7 @@
               SC.state.languages.splice(index + 1, 0, moved);
               SC.renderLanguageList();
               if (SC.renderAllLines) SC.renderAllLines();
+              if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
             }
           });
 
@@ -254,6 +261,7 @@
         item.visible = !item.visible;
         SC.renderLanguageList();
         if (SC.renderAllLines) SC.renderAllLines();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
       row.appendChild(visBtn);
 
@@ -322,6 +330,7 @@
             if (foundYt && SC.loadYouTubeTimedText) SC.loadYouTubeTimedText(foundYt, item.trackId);
           }
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
         });
         controls.appendChild(trackSelect);
       } else {
@@ -368,6 +377,7 @@
             SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
         });
         controls.appendChild(sourceSelect);
 
@@ -401,6 +411,7 @@
             SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
         });
         controls.appendChild(targetSelect);
 
@@ -459,6 +470,7 @@
             SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
         });
         controls.appendChild(engineSelect);
 
@@ -475,6 +487,7 @@
               const v = SC.getActiveVideo ? SC.getActiveVideo() : null;
               SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
             }
+            if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
           }
         };
         bufferInput.addEventListener('input', onBufferChange);
@@ -510,6 +523,7 @@
         }
         SC.renderLanguageList();
         if (SC.renderAllLines) SC.renderAllLines();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
 
       row.appendChild(controls);
@@ -528,6 +542,7 @@
           SC.state.languages.splice(index, 1);
           SC.renderLanguageList();
           if (SC.renderAllLines) SC.renderAllLines();
+          if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
         });
         actions.appendChild(delBtn);
       }
