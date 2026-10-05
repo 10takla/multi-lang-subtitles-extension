@@ -228,13 +228,18 @@
           <div class="sc-preset-wrap" title="Глобальные пресеты">
             <select class="sc-preset-select" id="sc-preset-select" title="Выбор пресета"></select>
             <input type="text" class="sc-preset-select" id="sc-preset-name" aria-label="Название пресета" hidden style="display: none">
-            <button type="button" class="sc-btn-icon" id="sc-btn-rename-preset" title="Переименовать пресет" aria-label="Переименовать пресет" hidden style="display: none">✎</button>
             <button type="button" class="sc-btn-icon" id="sc-btn-save-preset" title="Сохранить в текущий пресет">💾</button>
-            <button type="button" class="sc-btn-icon" id="sc-btn-add-preset" title="Создать новый именованный пресет">➕</button>
-            <button type="button" class="sc-btn-icon" id="sc-btn-delete-preset" title="Удалить пресет" aria-label="Удалить пресет" disabled hidden style="display: none">🗑</button>
+            <button type="button" class="sc-btn-icon" id="sc-btn-preset-menu" title="Действия с пресетами" aria-label="Действия с пресетами" aria-expanded="false" aria-controls="sc-preset-menu">⋯</button>
+            <div class="sc-preset-menu" id="sc-preset-menu" hidden>
+              <button type="button" id="sc-btn-add-preset">Сохранить как…</button>
+              <button type="button" id="sc-btn-rename-preset" hidden style="display: none">Переименовать</button>
+              <button type="button" id="sc-btn-delete-preset" disabled hidden style="display: none">Удалить</button>
+              <button type="button" id="sc-btn-export-presets">Экспорт пресетов</button>
+              <button type="button" id="sc-btn-import-presets">Импорт пресетов</button>
+            </div>
           </div>
           <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
-          <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)">🏷</button>
+          <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)" aria-label="Показывать теги языков"><span aria-hidden="true" style="font-size: 11px; font-weight: 600; line-height: 1">[EN]</span></button>
           <button class="sc-btn-icon" id="sc-btn-minimize" title="Свернуть">_</button>
           <button class="sc-btn-icon" id="sc-btn-close" title="Скрыть панель">✕</button>
         </div>
@@ -601,6 +606,40 @@
     const deletePresetBtn = shadow.getElementById('sc-btn-delete-preset');
     const renamePresetBtn = shadow.getElementById('sc-btn-rename-preset');
     const presetNameInput = shadow.getElementById('sc-preset-name');
+    const presetMenuBtn = shadow.getElementById('sc-btn-preset-menu');
+    const presetMenu = shadow.getElementById('sc-preset-menu');
+    function closePresetMenu() {
+      presetMenu.hidden = true;
+      presetMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+    presetMenuBtn.addEventListener('click', () => {
+      if (!presetMenu.hidden) {
+        closePresetMenu();
+        return;
+      }
+      const rect = presetMenuBtn.getBoundingClientRect();
+      presetMenu.hidden = false;
+      presetMenu.style.left = `${Math.max(4, Math.min(rect.right - presetMenu.offsetWidth, window.innerWidth - presetMenu.offsetWidth - 4))}px`;
+      presetMenu.style.top = `${rect.bottom + 4}px`;
+      if (rect.bottom + 4 + presetMenu.offsetHeight > window.innerHeight) {
+        presetMenu.style.top = `${Math.max(4, rect.top - presetMenu.offsetHeight - 4)}px`;
+      }
+      presetMenuBtn.setAttribute('aria-expanded', 'true');
+    });
+    presetMenu.addEventListener('click', event => {
+      if (event.target.closest('button')) closePresetMenu();
+    });
+    document.addEventListener('pointerdown', event => {
+      const path = event.composedPath();
+      if (!path.includes(presetMenu) && !path.includes(presetMenuBtn)) closePresetMenu();
+    });
+    shadow.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !presetMenu.hidden) {
+        closePresetMenu();
+        presetMenuBtn.focus();
+        event.stopPropagation();
+      }
+    });
     let renameId = null;
     let creatingPreset = false;
     let renameSaving = false;
@@ -675,6 +714,7 @@
     function finishPresetRename() {
       renameId = null;
       creatingPreset = false;
+      presetMenuBtn.disabled = false;
       addPresetBtn.style.display = '';
       presetNameInput.style.display = 'none';
       presetNameInput.hidden = true;
@@ -691,6 +731,8 @@
       const id = presetSelect?.value;
       if (!create && (!id || id === SC.DEFAULT_PRESET_ID)) return;
       creatingPreset = create;
+      closePresetMenu();
+      presetMenuBtn.disabled = true;
       renameId = create ? null : id;
       presetNameInput.value = create ? '' : (presetSelect.selectedOptions[0]?.textContent || '');
       presetNameInput.placeholder = create ? 'Название пресета' : '';
@@ -749,6 +791,71 @@
         }
       });
     }
+    let transferPanel = null;
+    function closePresetTransfer() {
+      if (transferPanel) transferPanel.remove();
+      transferPanel = null;
+    }
+    function showPresetTransfer(exportText = null) {
+      closePresetTransfer();
+      const panel = document.createElement('div');
+      transferPanel = panel;
+      panel.style.cssText = 'padding:10px;background:#1e293b;color:#f1f5f9;border-radius:6px;display:flex;flex-direction:column;gap:8px;';
+      const label = document.createElement('div');
+      label.textContent = exportText === null ? 'Вставьте JSON пресетов' : 'Скопируйте JSON пресетов';
+      const input = document.createElement('textarea');
+      input.setAttribute('aria-label', label.textContent);
+      input.style.cssText = 'box-sizing:border-box;width:100%;min-height:100px;background:#0f172a;color:#f1f5f9;';
+      input.value = exportText || '';
+      input.readOnly = exportText !== null;
+      const error = document.createElement('div');
+      error.setAttribute('role', 'alert');
+      error.style.color = '#fca5a5';
+      const actions = document.createElement('div');
+      const mode = document.createElement('select');
+      mode.setAttribute('aria-label', 'При совпадении пресетов');
+      for (const [value, text] of [['copy', 'Совпадения: сохранить копию'], ['replace', 'Совпадения: заменить']]) {
+        const option = document.createElement('option');
+        option.value = value; option.textContent = text; mode.appendChild(option);
+      }
+      if (exportText === null) actions.appendChild(mode);
+      const submit = document.createElement('button');
+      submit.type = 'button'; submit.textContent = exportText === null ? 'Импортировать' : 'Копировать';
+      submit.addEventListener('click', async () => {
+        submit.disabled = true; error.textContent = '';
+        try {
+          if (exportText === null) {
+            const count = await SC.importPresetsText(input.value, mode.value);
+            closePresetTransfer(); showStatus(`Импортировано пресетов: ${count}`);
+          } else {
+            await navigator.clipboard.writeText(input.value);
+            closePresetTransfer(); showStatus('Пресеты скопированы');
+          }
+        } catch (e) {
+          error.textContent = exportText === null ? e.message : 'Выделите и скопируйте текст вручную';
+          input.focus(); if (exportText !== null) input.select();
+        } finally { submit.disabled = false; }
+      });
+      const cancel = document.createElement('button');
+      cancel.type = 'button'; cancel.textContent = 'Закрыть'; cancel.addEventListener('click', closePresetTransfer);
+      actions.append(submit, cancel);
+      panel.append(label, input, error, actions);
+      const header = presetSelect.closest('.sc-header');
+      if (header) header.after(panel); else SC.widgetEl.appendChild(panel);
+      panel.addEventListener('keydown', event => {
+        event.stopPropagation();
+        if (event.key === 'Escape') { event.preventDefault(); closePresetTransfer(); }
+      });
+      input.focus(); if (exportText !== null) input.select();
+    }
+    shadow.getElementById('sc-btn-export-presets')?.addEventListener('click', async () => {
+      try {
+        const text = await SC.exportPresetsText();
+        try { await navigator.clipboard.writeText(text); showStatus('Пресеты скопированы'); }
+        catch (_) { showPresetTransfer(text); }
+      } catch (e) { showStatus(e.message || 'Не удалось экспортировать пресеты'); }
+    });
+    shadow.getElementById('sc-btn-import-presets')?.addEventListener('click', () => showPresetTransfer());
     let toastTimer = null;
     function showStatus(text) {
       let toast = shadow.getElementById('sc-toast');

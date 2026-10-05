@@ -301,6 +301,84 @@
   /**
    * Saves current site settings into the currently selected preset (or default preset).
    */
+  function portableSettings(settings) {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Некорректные настройки пресета');
+    const result = {};
+    const defaults = SC.getBuiltInDefaultSettings();
+    for (const key of ['fontSize', 'overlayPosX', 'overlayPosY', 'moveLocked', 'showLanguageTags', 'autoScroll', 'globalStyles', 'languages']) {
+      if (!(key in settings)) continue;
+      if (typeof settings[key] !== typeof defaults[key] || settings[key] === null) throw new Error(`Некорректное поле: ${key}`);
+      result[key] = JSON.parse(JSON.stringify(settings[key]));
+    }
+    if (result.globalStyles && (Array.isArray(result.globalStyles) || typeof result.globalStyles !== 'object')) throw new Error('Некорректные стили');
+    if (result.languages !== undefined) {
+      if (!Array.isArray(result.languages)) throw new Error('Некорректный суб-список');
+      result.languages = result.languages.map((item, index) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('Некорректный селектор');
+        const track = item.mode === 'track' || item.type === 'source';
+        const clean = {id: `lang_import_${index}`, mode: track ? 'track' : 'trans', type: track ? 'source' : 'translation', trackId: '', sourceTrack: '', sourceFrom: ''};
+        for (const key of ['targetLang', 'engine', 'bufferChars', 'bufferSec', 'visible', 'style']) {
+          if (item[key] !== undefined) clean[key] = item[key];
+        }
+        if (clean.targetLang !== undefined && typeof clean.targetLang !== 'string') throw new Error('Некорректный язык перевода');
+        if (clean.engine !== undefined && typeof clean.engine !== 'string') throw new Error('Некорректный движок перевода');
+        for (const key of ['bufferChars', 'bufferSec']) {
+          if (clean[key] !== undefined && (typeof clean[key] !== 'number' || !Number.isFinite(clean[key]) || clean[key] < 0)) throw new Error('Некорректный буфер перевода');
+        }
+        if (clean.visible !== undefined && typeof clean.visible !== 'boolean') throw new Error('Некорректная видимость');
+        if (clean.style !== undefined && (!clean.style || typeof clean.style !== 'object' || Array.isArray(clean.style))) throw new Error('Некорректный стиль селектора');
+        clean.lang = track ? '' : (clean.targetLang || 'en');
+        return clean;
+      });
+    }
+    return result;
+  }
+
+  SC.exportPresetsText = async function() {
+    const presets = await SC.getPresets();
+    return JSON.stringify({version: 1, presets: Object.values(presets).map(p => ({id: p.id === SC.DEFAULT_PRESET_ID ? 'default' : undefined, name: p.name, settings: portableSettings(p.settings)}))}, null, 2);
+  };
+
+  SC.importPresetsText = async function(text, conflictMode = 'copy') {
+    let parsed;
+    try {
+      parsed = JSON.parse(text, (key, value) => {
+        if (['__proto__', 'constructor', 'prototype'].includes(key)) throw new Error('Недопустимое поле');
+        return value;
+      });
+    } catch (_) { throw new Error('Некорректная JSON-строка'); }
+    if (parsed?.version !== 1 || !Array.isArray(parsed.presets) || !parsed.presets.length) throw new Error('Ожидается экспорт пресетов версии 1');
+    if (!['copy', 'replace'].includes(conflictMode)) throw new Error('Выберите способ обработки совпадений');
+    const incoming = parsed.presets.map(p => {
+      if (!p || typeof p.name !== 'string' || !p.name.trim()) throw new Error('У пресета отсутствует название');
+      return {isDefault: p.id === 'default', name: p.name.trim(), settings: portableSettings(p.settings)};
+    });
+    const presets = await SC.getPresets();
+    const normalize = name => name.trim().toLocaleLowerCase();
+    for (const p of incoming) {
+      const existing = p.isDefault ? presets[SC.DEFAULT_PRESET_ID] : Object.values(presets).find(item => normalize(item.name) === normalize(p.name));
+      let id, name = p.name;
+      if (existing && conflictMode === 'replace') {
+        id = existing.id;
+        if (id === SC.DEFAULT_PRESET_ID) name = SC.DEFAULT_PRESET_NAME;
+      } else {
+        id = `preset_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        let suffix = 2;
+        while (Object.values(presets).some(item => normalize(item.name) === normalize(name))) name = `${p.name} (${suffix++})`;
+      }
+      presets[id] = {id, name, settings: p.settings};
+    }
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await new Promise((resolve, reject) => {
+        chrome.storage.local.set({sc_presets: presets}, () => {
+          const error = chrome.runtime?.lastError;
+          if (error) reject(new Error(error.message)); else resolve();
+        });
+      });
+    } else localStorage.setItem('sc_presets', JSON.stringify(presets));
+    if (SC.updatePresetDropdown) await SC.updatePresetDropdown();
+    return incoming.length;
+  };
   SC.renamePreset = async function(presetId, name) {
     if (!presetId || presetId === SC.DEFAULT_PRESET_ID) return false;
     name = String(name || '').trim();
