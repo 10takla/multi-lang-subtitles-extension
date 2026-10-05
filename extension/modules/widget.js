@@ -365,6 +365,7 @@
         SC.state.autoScroll = !SC.state.autoScroll;
         autoScrollBtn.classList.toggle('active', SC.state.autoScroll);
         if (SC.state.autoScroll && SC.scrollListToBottom) SC.scrollListToBottom();
+        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
     }
 
@@ -585,20 +586,30 @@
       });
     }
 
-    // Language tags prefix toggle (ai_instrs/_.md:23)
+    SC.syncSettingsControls = function() {
+      if (langTagsBtn) {
+        const enabled = Boolean(SC.state.showLanguageTags);
+        langTagsBtn.classList.toggle('active', enabled);
+        langTagsBtn.setAttribute('aria-pressed', String(enabled));
+        langTagsBtn.title = `Тег языка перед субтитрами на видео: ${enabled ? 'Вкл' : 'Выкл'}`;
+      }
+      if (autoScrollBtn) autoScrollBtn.classList.toggle('active', Boolean(SC.state.autoScroll));
+      if (lockDragBtn) {
+        lockDragBtn.classList.toggle('active', Boolean(SC.state.moveLocked));
+        lockDragBtn.title = `Блокировка перемещения: ${SC.state.moveLocked ? 'Вкл' : 'Выкл'}`;
+      }
+    };
+    SC.syncSettingsControls();
+
     if (langTagsBtn) {
       langTagsBtn.addEventListener('click', () => {
         SC.state.showLanguageTags = !SC.state.showLanguageTags;
-        langTagsBtn.classList.toggle('active', SC.state.showLanguageTags);
-        langTagsBtn.title = SC.state.showLanguageTags
-          ? 'Тег языка перед субтитрами на видео: Вкл'
-          : 'Тег языка перед субтитрами на видео: Выкл (по умолчанию)';
+        SC.syncSettingsControls();
         showStatus(SC.state.showLanguageTags ? 'Теги языка: Вкл' : 'Теги языка: Выкл');
         if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
         if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
     }
-
     // Preset dropdown and buttons (ai_instrs/_.md:41-46)
     const presetSelect = shadow.getElementById('sc-preset-select');
     const savePresetBtn = shadow.getElementById('sc-btn-save-preset');

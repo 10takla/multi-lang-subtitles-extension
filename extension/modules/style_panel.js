@@ -726,6 +726,7 @@
         textAlign: 'left',
         font: { preset: 'base', fontFamily: 'inherit', fontWeight: 'normal', fontStyle: 'normal', fontSizePercent: 100, textColor: '#ffffff' }
       };
+      if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       if (SC.openGlobalStylesModal) SC.openGlobalStylesModal();
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();

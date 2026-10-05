@@ -222,6 +222,7 @@
     }
 
     // Refresh UI components
+    if (SC.syncSettingsControls) SC.syncSettingsControls();
     if (SC.syncPositionSliders) SC.syncPositionSliders();
     if (SC.renderLanguageList) SC.renderLanguageList();
     if (SC.applyFontSize) SC.applyFontSize();
