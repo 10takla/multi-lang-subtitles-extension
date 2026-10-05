@@ -186,6 +186,7 @@
     const triggerStyleUpdate = () => {
       if (SC.renderAllLines) SC.renderAllLines();
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
     };
 
     presetSel.addEventListener('change', () => {
@@ -583,6 +584,7 @@
       gFont.textColor = colorInput.value;
 
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
       if (SC.renderAllLines) SC.renderAllLines();
     };
 
@@ -674,6 +676,7 @@
       };
       if (SC.openGlobalStylesModal) SC.openGlobalStylesModal();
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
       if (SC.renderAllLines) SC.renderAllLines();
     });
 

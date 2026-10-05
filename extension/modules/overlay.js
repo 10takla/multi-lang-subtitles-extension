@@ -100,12 +100,14 @@
     }
 
     // Scale font size dynamically with video size
+    const gStyles = SC.state.globalStyles || {};
+    const gFont = gStyles.font || {};
+    const globalSizePct = typeof gFont.fontSizePercent === 'number' ? gFont.fontSizePercent : 100;
     const scaleFactor = Math.max(0.7, Math.min(1.6, vRect.width / 800));
-    const dynamicFontSize = Math.round(SC.state.fontSize * scaleFactor);
-    SC.overlayEl.style.fontSize = `${dynamicFontSize}px`;
+    const dynamicFontSize = Math.round((SC.state.fontSize || 13) * scaleFactor);
+    SC.overlayEl.style.fontSize = `${Math.round(dynamicFontSize * globalSizePct / 100)}px`;
 
     // Max width of subtitle list text: 0-100% of video detect window (ai_instrs/_.md:15)
-    const gStyles = SC.state.globalStyles || {};
     const maxWPercent = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 100;
     SC.overlayEl.style.maxWidth = `${Math.round(vRect.width * (Math.max(10, Math.min(100, maxWPercent)) / 100))}px`;
 
@@ -183,6 +185,10 @@
     const showTags = Boolean(SC.state.showLanguageTags);
     linesContainer.classList.toggle('sc-with-tags', showTags);
 
+    const vRect = video ? video.getBoundingClientRect() : { width: 800 };
+    const scaleFactor = Math.max(0.7, Math.min(1.6, (vRect.width || 800) / 800));
+    const dynamicFontSize = Math.round((SC.state.fontSize || 13) * scaleFactor);
+
     const entries = [];
     const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
 
@@ -242,9 +248,8 @@
         if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
         if (effectiveWeight && effectiveWeight !== 'normal') styles.push(`font-weight: ${effectiveWeight} !important;`);
         if (effectiveStyle && effectiveStyle !== 'normal') styles.push(`font-style: ${effectiveStyle} !important;`);
-        if (effectiveSizePct && effectiveSizePct !== 100) {
-          styles.push(`font-size: ${Math.round(dynamicFontSize * effectiveSizePct / 100)}px !important;`);
-        }
+        const lineFontSize = Math.round(dynamicFontSize * (effectiveSizePct / 100));
+        styles.push(`font-size: ${lineFontSize}px !important;`);
         if (effectiveColor) styles.push(`color: ${effectiveColor} !important;`);
         if (effectivePreset === 'netflix') {
           styles.push(`text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 2px #000, -1px -1px 2px #000 !important;`);
@@ -314,9 +319,8 @@
         if (effectiveFont && effectiveFont !== 'inherit') styles.push(`font-family: ${effectiveFont} !important;`);
         if (effectiveWeight && effectiveWeight !== 'normal') styles.push(`font-weight: ${effectiveWeight} !important;`);
         if (effectiveStyle && effectiveStyle !== 'normal') styles.push(`font-style: ${effectiveStyle} !important;`);
-        if (effectiveSizePct && effectiveSizePct !== 100) {
-          styles.push(`font-size: ${Math.round(dynamicFontSize * effectiveSizePct / 100)}px !important;`);
-        }
+        const lineFontSize = Math.round(dynamicFontSize * (effectiveSizePct / 100));
+        styles.push(`font-size: ${lineFontSize}px !important;`);
         if (effectiveColor) styles.push(`color: ${effectiveColor} !important;`);
         if (effectivePreset === 'netflix') {
           styles.push(`text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 2px #000, -1px -1px 2px #000 !important;`);

@@ -313,6 +313,7 @@
   // Apply font size adjustment to on-video overlay
   SC.applyFontSize = function() {
     if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
+    if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
   };
 
   // Setup event listeners for widget controls

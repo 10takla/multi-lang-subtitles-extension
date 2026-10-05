@@ -152,6 +152,31 @@
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.sc-style-btn-step {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: all 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.sc-style-btn-step:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.sc-style-btn-step:active {
+  transform: scale(0.95);
+}
+
 @keyframes sc-slide-down {
   from {
     opacity: 0;
