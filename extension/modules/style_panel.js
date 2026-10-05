@@ -51,17 +51,17 @@
     panel.innerHTML = `
       <div class="sc-embedded-style-card">
         <div class="sc-embedded-style-header">
-          <span class="sc-embedded-style-title">⚙ Стили строки: ${SC.escapeHtml(item.label || item.lang || 'Селектор')}</span>
+          <span class="sc-embedded-style-title">⚙ Стили: ${SC.escapeHtml(item.label || item.lang || 'Строка')}</span>
           <div class="sc-embedded-style-actions">
             <button type="button" class="sc-btn-icon" id="sc-style-reset" title="Сбросить в Inherit">↺</button>
             <button type="button" class="sc-btn-icon" id="sc-style-embed-close" title="Закрыть">✕</button>
           </div>
         </div>
         <div class="sc-embedded-style-grid">
-          <!-- 1. Выбор шрифта (ai_instrs/_.md:45) -->
-          <div class="sc-style-group-title">Выбор шрифта:</div>
+          <!-- 1. Шрифт (ai_instrs/_.md:45) -->
+          <div class="sc-style-group-title">Шрифт:</div>
           <div class="sc-style-field">
-            <label class="sc-style-label">Готовый стиль:</label>
+            <label class="sc-style-label">Пресет:</label>
             <select class="sc-lang-select sc-style-select" id="sc-style-preset">
               <option value="inherit" ${st.preset === 'inherit' ? 'selected' : ''}>Inherit</option>
               <option value="base" ${st.preset === 'base' ? 'selected' : ''}>Base</option>
@@ -115,18 +115,17 @@
           </div>
 
           <div class="sc-style-field">
-            <label class="sc-style-label">Цвет текста:</label>
+            <label class="sc-style-label">Цвет:</label>
             <div class="sc-style-color-row">
               <input type="color" class="sc-style-color-input" id="sc-style-text-color" value="${st.textColor && st.textColor !== 'inherit' ? st.textColor : (gFont.textColor || '#ffffff')}">
               <button type="button" class="sc-style-btn-reset" id="sc-style-color-inherit-btn" style="padding: 0 4px; font-size: 9px;">Inh</button>
             </div>
           </div>
 
-          <!-- 2. Подложка текста селекторов (ai_instrs/_.md:46, 12-13) -->
-          <div class="sc-style-group-title">Подложка текста селектора:</div>
-          <div class="sc-style-field">
-            <label class="sc-style-label">Подложка:</label>
-            <select class="sc-lang-select sc-style-select" id="sc-style-bg-mode">
+          <!-- 2. Подложка строки (ai_instrs/_.md:46, 12-13) -->
+          <div class="sc-style-group-header">
+            <span class="sc-style-group-title">Подложка строки:</span>
+            <select class="sc-lang-select sc-style-select" id="sc-style-bg-mode" style="max-width: 90px; height: 22px;">
               <option value="inherit" ${st.bgEnabled === 'inherit' ? 'selected' : ''}>Inherit</option>
               <option value="off" ${st.bgEnabled === false || st.bgEnabled === 'off' ? 'selected' : ''}>Выкл</option>
               <option value="on" ${isBgActive ? 'selected' : ''}>Вкл</option>
@@ -361,23 +360,20 @@
     panel.innerHTML = `
       <div class="sc-embedded-style-card">
         <div class="sc-embedded-style-header">
-          <span class="sc-embedded-style-title">🎨 Общие стили субтитров</span>
+          <span class="sc-embedded-style-title">🎨 Общие стили</span>
           <div class="sc-embedded-style-actions">
             <button type="button" class="sc-btn-icon" id="sc-gstyle-reset" title="Сбросить">↺</button>
             <button type="button" class="sc-btn-icon" id="sc-gstyle-embed-close" title="Закрыть">✕</button>
           </div>
         </div>
         <div class="sc-embedded-style-grid">
-          <!-- 1. Подложка текста суб-списка (ai_instrs/_.md:12) -->
-          <div class="sc-style-group-title">Подложка текста суб-списка:</div>
-          <div class="sc-style-field">
-            <label class="sc-style-label">Подложка:</label>
-            <div class="sc-style-bg-row">
-              <label class="sc-switch">
-                <input type="checkbox" id="sc-gstyle-sublist-enabled" ${subListBg.enabled ? 'checked' : ''}>
-                <span class="sc-switch-slider"></span>
-              </label>
-            </div>
+          <!-- 1. Подложка списка (ai_instrs/_.md:12) -->
+          <div class="sc-style-group-header">
+            <span class="sc-style-group-title">Подложка списка:</span>
+            <label class="sc-switch">
+              <input type="checkbox" id="sc-gstyle-sublist-enabled" ${subListBg.enabled ? 'checked' : ''}>
+              <span class="sc-switch-slider"></span>
+            </label>
           </div>
 
           <!-- Если включен, появляются выбор: цвет, контур, padding (ai_instrs/_.md:12) -->
@@ -403,16 +399,13 @@
             </div>
           </div>
 
-          <!-- 2. Подложка текста селекторов (ai_instrs/_.md:13) -->
-          <div class="sc-style-group-title">Подложка текста селекторов:</div>
-          <div class="sc-style-field">
-            <label class="sc-style-label">Подложка:</label>
-            <div class="sc-style-bg-row">
-              <label class="sc-switch">
-                <input type="checkbox" id="sc-gstyle-sel-enabled" ${selectorBg.enabled ? 'checked' : ''}>
-                <span class="sc-switch-slider"></span>
-              </label>
-            </div>
+          <!-- 2. Подложка строк (ai_instrs/_.md:13) -->
+          <div class="sc-style-group-header">
+            <span class="sc-style-group-title">Подложка строк:</span>
+            <label class="sc-switch">
+              <input type="checkbox" id="sc-gstyle-sel-enabled" ${selectorBg.enabled ? 'checked' : ''}>
+              <span class="sc-switch-slider"></span>
+            </label>
           </div>
 
           <!-- Если включен, появляются выбор: цвет, контур, padding (ai_instrs/_.md:13) -->
@@ -437,10 +430,10 @@
             </div>
           </div>
 
-          <!-- 3. Геометрия списка: Gap, Макс. ширина, Выравнивание (ai_instrs/_.md:14-16) -->
-          <div class="sc-style-group-title">Геометрия списка:</div>
+          <!-- 3. Геометрия списка (ai_instrs/_.md:14-16) -->
+          <div class="sc-style-group-title">Геометрия:</div>
           <div class="sc-style-field">
-            <label class="sc-style-label">Gap между текстами:</label>
+            <label class="sc-style-label">Интервал:</label>
             <div class="sc-style-size-row">
               <input type="range" class="sc-style-range" id="sc-gstyle-gap" min="0" max="20" value="${gStyles.lineGap ?? 3}">
               <span class="sc-style-val" id="sc-gstyle-gap-val">${gStyles.lineGap ?? 3}px</span>
@@ -448,7 +441,7 @@
           </div>
 
           <div class="sc-style-field" id="sc-gstyle-maxwidth-wrap">
-            <label class="sc-style-label">Максимальная ширина:</label>
+            <label class="sc-style-label">Макс. ширина:</label>
             <div class="sc-style-size-row">
               <input type="range" class="sc-style-range" id="sc-gstyle-maxwidth" min="10" max="100" step="5" value="${maxWidthPct}">
               <span class="sc-style-val" id="sc-gstyle-maxwidth-val">${maxWidthPct}%</span>
@@ -457,17 +450,23 @@
 
           <div class="sc-style-field">
             <label class="sc-style-label">Выравнивание:</label>
-            <select class="sc-lang-select sc-style-select" id="sc-gstyle-align">
-              <option value="left" ${textAlignVal === 'left' ? 'selected' : ''}>По левому краю</option>
-              <option value="center" ${textAlignVal === 'center' ? 'selected' : ''}>По центру</option>
-              <option value="right" ${textAlignVal === 'right' ? 'selected' : ''}>По правому краю</option>
-            </select>
+            <div class="sc-style-align-group" id="sc-gstyle-align-group">
+              <button type="button" class="sc-align-btn ${textAlignVal === 'left' ? 'sc-active' : ''}" data-value="left" title="По левому краю">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5h12v1.5H2zm0 3.5h7.5v1.5H2zm0 3.5h12v1.5H2zm0 3.5h7.5v1.5H2z"/></svg>
+              </button>
+              <button type="button" class="sc-align-btn ${textAlignVal === 'center' ? 'sc-active' : ''}" data-value="center" title="По центру">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5h12v1.5H2zm2.25 3.5h7.5v1.5h-7.5zm-2.25 3.5h12v1.5H2zm2.25 3.5h7.5v1.5h-7.5z"/></svg>
+              </button>
+              <button type="button" class="sc-align-btn ${textAlignVal === 'right' ? 'sc-active' : ''}" data-value="right" title="По правому краю">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5h12v1.5H2zm4.5 3.5h7.5v1.5H6.5zm-4.5 3.5h12v1.5H2zm4.5 3.5h7.5v1.5H6.5z"/></svg>
+              </button>
+            </div>
           </div>
 
-          <!-- 4. Выбор шрифта (ai_instrs/_.md:17-21) -->
-          <div class="sc-style-group-title">Выбор шрифта:</div>
+          <!-- 4. Шрифт (ai_instrs/_.md:17-21) -->
+          <div class="sc-style-group-title">Шрифт:</div>
           <div class="sc-style-field">
-            <label class="sc-style-label">Готовый стиль:</label>
+            <label class="sc-style-label">Пресет:</label>
             <select class="sc-lang-select sc-style-select" id="sc-gstyle-preset">
               <option value="base" ${gFont.preset === 'base' ? 'selected' : ''}>Base</option>
               <option value="netflix" ${gFont.preset === 'netflix' ? 'selected' : ''}>Netflix</option>
@@ -511,7 +510,7 @@
             </div>
           </div>
           <div class="sc-style-field">
-            <label class="sc-style-label">Цвет текста:</label>
+            <label class="sc-style-label">Цвет:</label>
             <input type="color" class="sc-style-color-input" id="sc-gstyle-color" value="${gFont.textColor || '#ffffff'}">
           </div>
         </div>
@@ -537,7 +536,7 @@
     const maxwidthWrap = panel.querySelector('#sc-gstyle-maxwidth-wrap');
     const maxwidthRange = panel.querySelector('#sc-gstyle-maxwidth');
     const maxwidthVal = panel.querySelector('#sc-gstyle-maxwidth-val');
-    const alignSel = panel.querySelector('#sc-gstyle-align');
+    const alignBtns = panel.querySelectorAll('.sc-align-btn');
 
     const presetSel = panel.querySelector('#sc-gstyle-preset');
     const fontSel = panel.querySelector('#sc-gstyle-font');
@@ -572,7 +571,8 @@
       gStyles.maxWidthPercent = parseInt(maxwidthRange.value, 10) || 100;
       maxwidthVal.textContent = `${gStyles.maxWidthPercent}%`;
 
-      gStyles.textAlign = alignSel.value;
+      const activeAlign = panel.querySelector('.sc-align-btn.sc-active');
+      gStyles.textAlign = activeAlign ? activeAlign.dataset.value : 'left';
 
       gFont.preset = presetSel.value;
       gFont.fontFamily = fontSel.value;
@@ -622,7 +622,13 @@
       });
     }
 
-    alignSel.addEventListener('change', applyGlobalChanges);
+    alignBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        alignBtns.forEach(b => b.classList.remove('sc-active'));
+        btn.classList.add('sc-active');
+        applyGlobalChanges();
+      });
+    });
 
     presetSel.addEventListener('change', () => {
       if (presetSel.value === 'netflix') {
