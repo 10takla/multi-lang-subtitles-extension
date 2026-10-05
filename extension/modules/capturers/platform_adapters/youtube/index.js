@@ -411,6 +411,14 @@
       cues = SC.ytActiveCues;
     }
 
+    if (!cues || cues.length === 0) {
+      if (SC.ytActiveCues && SC.ytActiveCues.length > 0) {
+        cues = SC.ytActiveCues;
+      } else if (SC.ytTrackCues && SC.ytTrackCues.size > 0) {
+        cues = SC.ytTrackCues.values().next().value;
+      }
+    }
+
     if (cues && cues.length > 0) {
       for (let i = 0; i < cues.length; i++) {
         const c = cues[i];

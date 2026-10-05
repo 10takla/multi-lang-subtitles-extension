@@ -482,7 +482,7 @@
         if (SC.registerVideoWithSubtitles) SC.registerVideoWithSubtitles(video);
       }
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
-      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime);
       // When playback resumes, start fade timer for active line if timeline is now moving
       if (SC.state.currentActiveLine && SC.scheduleOverlayFade) {
         SC.scheduleOverlayFade(SC.state.currentActiveLine);
@@ -562,7 +562,7 @@
       if (Math.abs(t - lastPrefetchTime) >= 3.5) {
         lastPrefetchTime = t;
         if (SC.prefetchUpcomingTranslations) {
-          SC.prefetchUpcomingTranslations(t, 45);
+          SC.prefetchUpcomingTranslations(t);
         }
       }
     });
@@ -626,7 +626,7 @@
       }
 
       if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
-      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime, 45);
+      if (SC.prefetchUpcomingTranslations) SC.prefetchUpcomingTranslations(video.currentTime);
     });
   };
 

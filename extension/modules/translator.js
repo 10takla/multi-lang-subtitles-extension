@@ -234,7 +234,9 @@
       const normTargetLang = SC.normalizeLangCode ? SC.normalizeLangCode(targetLang) : targetLang;
 
       // Sort candidate cues by start time ascending
-      const sortedCues = [...upcomingCues].sort((a, b) => a.start - b.start);
+      const sortedCues = [...upcomingCues]
+        .filter(c => c.end >= t - 1)
+        .sort((a, b) => a.start - b.start);
 
       // Pack whole cues into buffer up to maxChars
       const batch = [];
@@ -245,16 +247,18 @@
         const sourceText = SC.cleanText(cue.text);
         if (!sourceText) continue;
 
+        const cacheKey = `${engine}_${normSourceLang}_${normTargetLang}_${sourceText}`;
+        if (SC.state.translationCache.has(cacheKey) || inFlightRequests.has(cacheKey)) {
+          continue; // Already translated or currently fetching, look ahead for more
+        }
+
         const textLen = sourceText.length;
         // Stop if adding the next whole cue would exceed character limit
         if (totalChars + textLen > maxChars && batch.length > 0) {
           break;
         }
 
-        const cacheKey = `${engine}_${normSourceLang}_${normTargetLang}_${sourceText}`;
-        if (!SC.state.translationCache.has(cacheKey) && !inFlightRequests.has(cacheKey)) {
-          batch.push({ cue, text: sourceText, key: cacheKey });
-        }
+        batch.push({ cue, text: sourceText, key: cacheKey });
         totalChars += textLen;
         if (totalChars >= maxChars) break;
       }

@@ -365,7 +365,7 @@
           if (SC.retranslateItem) SC.retranslateItem(item);
           if (SC.prefetchUpcomingTranslations) {
             const v = SC.getActiveVideo ? SC.getActiveVideo() : null;
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
           if (SC.renderAllLines) SC.renderAllLines();
         });
@@ -505,7 +505,7 @@
           if (SC.retranslateItem) SC.retranslateItem(item);
           if (SC.prefetchUpcomingTranslations) {
             const v = SC.getActiveVideo ? SC.getActiveVideo() : null;
-            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
         }
         SC.renderLanguageList();
