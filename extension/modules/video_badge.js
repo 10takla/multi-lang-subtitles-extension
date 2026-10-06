@@ -311,6 +311,17 @@
         continue;
       }
 
+      if (SC.isMobilePanel?.() && SC.hostEl) {
+        const origin = SC.hostEl.getBoundingClientRect();
+        btn.style.setProperty('position', 'absolute', 'important');
+        const top = `${rect.top - origin.top + 10}px`;
+        const left = `${rect.right - origin.left - 42}px`;
+        if (btn.style.top !== top) btn.style.top = top;
+        if (btn.style.left !== left) btn.style.left = left;
+        btn.style.display = 'flex';
+        continue;
+      }
+      btn.style.setProperty('position', 'fixed', 'important');
       const iconW = 32;
       const iconH = 32;
       const pad = 10;

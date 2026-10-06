@@ -664,3 +664,6 @@
 @media (max-width: 640px), (pointer: coarse) and (max-width: 960px) {
   .sc-preset-menu button { min-height: 44px; font-size: 14px; }
 }
+@media (max-width: 640px), (pointer: coarse) and (max-width: 960px) {
+  .sc-widget { will-change: transform; transform: translateZ(0); }
+}

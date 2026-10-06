@@ -68,6 +68,13 @@
       return;
     }
 
+    if (SC.isMobilePanel()) {
+      SC.widgetEl.classList.remove('sc-hidden');
+      if (SC.widgetEl.style.maxHeight !== '50svh') {
+        Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '50svh'});
+      }
+      return;
+    }
     const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
     if (vRect.width < 50 || vRect.height < 50 || vRect.bottom <= 0 || vRect.top >= window.innerHeight || vRect.right <= 0 || vRect.left >= window.innerWidth) {
       SC.widgetEl.classList.add('sc-hidden');
@@ -76,10 +83,6 @@
 
     SC.widgetEl.classList.remove('sc-hidden');
 
-    if (SC.isMobilePanel()) {
-      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '50svh'});
-      return;
-    }
     const pad = 6;
     const vTop = Math.max(0, vRect.top);
     const vBottom = Math.min(window.innerHeight, vRect.bottom);
@@ -628,6 +631,12 @@
     presetMenu.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
     function syncMobileHeader() {
       const mobile = SC.isMobilePanel();
+      // Absolute document anchoring lets mobile badges move with native scrolling.
+      SC.hostEl.style.setProperty('position', mobile ? 'absolute' : 'fixed', 'important');
+      SC.hostEl.style.left = '0';
+      SC.hostEl.style.top = '0';
+      SC.hostEl.style.width = '0';
+      SC.hostEl.style.height = '0';
       if (mobile) {
         savePresetBtn.textContent = 'Сохранить';
         langTagsBtn.innerHTML = '<span aria-hidden="true" style="font-size:11px;font-weight:600">[EN]</span>';
@@ -641,7 +650,19 @@
       }
     }
     syncMobileHeader();
-    window.matchMedia('(max-width: 640px), (pointer: coarse) and (max-width: 960px)').addEventListener('change', syncMobileHeader);
+    function syncMobileViewport() {
+      if (!SC.widgetEl || !SC.isMobilePanel()) return;
+      const viewport = window.visualViewport;
+      const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      const inset = Math.max(0, window.innerHeight - visibleBottom);
+      const bottom = `${inset}px`;
+      if (SC.widgetEl.style.bottom !== bottom) SC.widgetEl.style.bottom = bottom;
+    }
+    window.visualViewport?.addEventListener('resize', syncMobileViewport, { passive: true });
+    window.visualViewport?.addEventListener('scroll', syncMobileViewport, { passive: true });
+    window.addEventListener('resize', syncMobileViewport, { passive: true });
+    syncMobileViewport();
+    window.matchMedia('(max-width: 640px), (pointer: coarse) and (max-width: 960px)').addEventListener('change', () => { syncMobileHeader(); syncMobileViewport(); });
     function closePresetMenu() {
       presetMenu.hidden = true;
       presetMenuBtn.setAttribute('aria-expanded', 'false');
