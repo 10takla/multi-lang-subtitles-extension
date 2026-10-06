@@ -27,9 +27,22 @@
     const host = document.createElement('div');
     host.id = 'subtitles-capturer-overlay-host';
     const shadowRoot = host.attachShadow({ mode: 'open' });
+    const stylesheetLoads = [];
+    SC.overlayStylesReady = false;
     for (const style of panelShadow.querySelectorAll('link[rel="stylesheet"], style')) {
-      shadowRoot.appendChild(style.cloneNode(true));
+      const clone = style.cloneNode(true);
+      if (clone.tagName === 'LINK') {
+        stylesheetLoads.push(new Promise((resolve, reject) => {
+          clone.addEventListener('load', resolve, { once: true });
+          clone.addEventListener('error', () => reject(new Error('Subtitle stylesheet failed to load')), { once: true });
+        }));
+      }
+      shadowRoot.appendChild(clone);
     }
+    Promise.all(stylesheetLoads).then(() => {
+      SC.overlayStylesReady = true;
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+    }).catch(error => console.error('[SC]', error));
     const layerStyle = document.createElement('style');
     layerStyle.textContent = ':host { display: contents !important; position: static !important; z-index: auto !important; pointer-events: none !important; } .sc-hidden { display: none !important; }';
     shadowRoot.appendChild(layerStyle);
@@ -38,6 +51,7 @@
     (document.body || document.documentElement).appendChild(host);
     const overlay = document.createElement('div');
     overlay.className = 'sc-video-overlay sc-hidden';
+    overlay.style.visibility = 'hidden';
     overlay.id = 'sc-video-overlay';
     overlay.title = 'Перетащите для перемещения субтитров на видео';
     overlay.innerHTML = '<div class="sc-video-overlay-lines" id="sc-video-overlay-lines"></div>';
@@ -54,6 +68,11 @@
     SC.overlaySkeletonEl = skeleton;
 
     if (typeof ResizeObserver !== 'undefined') {
+      SC.overlayResizeObserver?.disconnect();
+      SC.overlayResizeObserver = new ResizeObserver(() => {
+        if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
+      });
+      SC.overlayResizeObserver.observe(overlay);
       SC.videoResizeObserver = new ResizeObserver(() => {
         if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
         else SC.updateVideoOverlayPosition();
@@ -104,6 +123,7 @@
   // Adjust overlay position strictly within video boundaries ("в рамках окна видео")
   SC.updateVideoOverlayPosition = function() {
     if (!SC.overlayEl) return;
+    if (SC.overlayStylesReady === false) { SC.overlayEl.style.visibility = 'hidden'; return; }
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
     if (!video || video.ownerDocument !== document || ((!SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) && !(SC.subtitleTestMode || (SC.mobilePreview && SC.isMobilePanel?.())))) {
       SC.overlayEl.classList.add('sc-hidden');
@@ -118,7 +138,13 @@
       return;
     }
 
-    // Make element accessible to layout calculation before reading dimensions to prevent unaligned jumps
+    const content = SC.overlayShadowRoot?.getElementById('sc-video-overlay-lines');
+    if (!content || !content.innerHTML.trim()) {
+      SC.overlayEl.classList.add('sc-hidden');
+      return;
+    }
+
+    // Measure populated content before making the overlay visible.
     const wasHidden = SC.overlayEl.classList.contains('sc-hidden');
     if (wasHidden) {
       SC.overlayEl.style.visibility = 'hidden';
@@ -166,8 +192,8 @@
       SC.overlayEl.style.padding = '0';
     }
 
-    const oW = SC.overlayEl.offsetWidth || 260;
-    const oH = SC.overlayEl.offsetHeight || 50;
+    const oW = SC.overlayEl.offsetWidth;
+    const oH = SC.overlayEl.offsetHeight;
 
     // 0-100% positioning within video window boundaries (ai_instrs/_.md:24)
     const posXPercent = typeof SC.state.overlayPosX === 'number' ? SC.state.overlayPosX : 50;

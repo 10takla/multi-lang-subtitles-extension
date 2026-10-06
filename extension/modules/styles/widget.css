@@ -652,3 +652,11 @@
 }
 .sc-widget #sc-btn-test-subtitles svg { width: 14px; height: 14px; }
 .sc-widget #sc-btn-test-subtitles { font-weight: 600; font-size: 14px; }
+
+.sc-widget #sc-btn-minimize,
+.sc-widget #sc-btn-close {
+  color: #f1f5f9;
+  opacity: 1;
+}
+.sc-widget #sc-btn-minimize:hover,
+.sc-widget #sc-btn-close:hover { color: #fff; background: rgba(255,255,255,0.12); }

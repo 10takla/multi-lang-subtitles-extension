@@ -192,3 +192,6 @@ svg.sc-loading-spinner {
   display: none !important;
 }
 
+
+/* Keep intrinsic subtitle width independent of the previous left coordinate. */
+.sc-video-overlay { width: max-content; }
