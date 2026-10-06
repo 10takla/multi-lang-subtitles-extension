@@ -91,7 +91,7 @@
     const vRect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
     if (vRect.width < 50 || vRect.height < 50) return;
 
-    const pct = typeof percent === 'number' ? percent : (SC.state.globalStyles?.maxWidthPercent ?? 100);
+    const pct = typeof percent === 'number' ? percent : (SC.state.globalStyles?.maxWidthPercent ?? 68);
     const targetW = Math.round(vRect.width * (Math.max(10, Math.min(100, pct)) / 100));
     const targetH = Math.max(40, SC.overlayEl?.offsetHeight || 50);
 
@@ -160,7 +160,7 @@
     SC.overlayEl.style.fontSize = `${Math.round(dynamicFontSize * globalSizePct / 100)}px`;
 
     // Max width of subtitle list text: 0-100% of video detect window (ai_instrs/_.md:15)
-    const maxWPercent = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 100;
+    const maxWPercent = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 68;
     SC.overlayEl.style.maxWidth = `${Math.round(vRect.width * (Math.max(10, Math.min(100, maxWPercent)) / 100))}px`;
 
     // Alignment of subtitle list text (ai_instrs/_.md:16, default left)

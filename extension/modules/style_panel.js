@@ -490,7 +490,7 @@
     const subListBg = gStyles.subListBg = gStyles.subListBg || { enabled: true, color: 'rgba(12, 15, 20, 0.86)', border: '1px solid rgba(255, 255, 255, 0.2)', padding: 6, paddingY: 6, paddingX: 6, borderRadius: 8 };
     const selectorBg = gStyles.selectorBg = gStyles.selectorBg || { enabled: false, color: 'rgba(0, 0, 0, 0.75)', border: 'none', padding: 4, paddingY: 4, paddingX: 4, borderRadius: 4 };
     const gFont = gStyles.font = gStyles.font || { preset: 'base', fontFamily: 'inherit', fontWeight: 'normal', fontStyle: 'normal', fontSizePercent: 100, textColor: '#ffffff' };
-    const maxWidthPct = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 100;
+    const maxWidthPct = typeof gStyles.maxWidthPercent === 'number' ? gStyles.maxWidthPercent : 68;
     const textAlignVal = gStyles.textAlign || 'left';
 
     panel.innerHTML = `
@@ -579,7 +579,7 @@
           <div class="sc-style-field" id="sc-gstyle-maxwidth-wrap">
             <label class="sc-style-label">Макс. ширина:</label>
             <div class="sc-style-size-row">
-              <input type="range" class="sc-style-range" id="sc-gstyle-maxwidth" min="10" max="100" step="5" value="${maxWidthPct}">
+              <input type="range" class="sc-style-range" id="sc-gstyle-maxwidth" min="10" max="100" step="1" value="${maxWidthPct}">
               <span class="sc-style-val" id="sc-gstyle-maxwidth-val">${maxWidthPct}%</span>
             </div>
           </div>
@@ -706,7 +706,7 @@
       gStyles.lineGap = parseInt(gapRange.value, 10);
       gapVal.textContent = `${gStyles.lineGap}px`;
 
-      gStyles.maxWidthPercent = parseInt(maxwidthRange.value, 10) || 100;
+      gStyles.maxWidthPercent = parseInt(maxwidthRange.value, 10) || 68;
       maxwidthVal.textContent = `${gStyles.maxWidthPercent}%`;
 
       const activeAlign = panel.querySelector('.sc-align-btn.sc-active');
@@ -827,7 +827,7 @@
         subListBg: { enabled: true, color: 'rgba(12, 15, 20, 0.86)', border: '1px solid rgba(255, 255, 255, 0.2)', padding: 6, paddingY: 6, paddingX: 6, borderRadius: 8 },
         selectorBg: { enabled: false, color: 'rgba(0, 0, 0, 0.75)', border: 'none', padding: 4, paddingY: 4, paddingX: 4, borderRadius: 4 },
         lineGap: 3,
-        maxWidthPercent: 100,
+        maxWidthPercent: 68,
         textAlign: 'left',
         font: { preset: 'base', fontFamily: 'inherit', fontWeight: 'normal', fontStyle: 'normal', fontSizePercent: 100, textColor: '#ffffff' }
       };

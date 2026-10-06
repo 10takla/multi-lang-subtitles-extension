@@ -140,7 +140,7 @@
           borderRadius: 4
         },
         lineGap: 3,
-        maxWidthPercent: 100,
+        maxWidthPercent: 68,
         textAlign: 'left',
         font: {
           preset: 'base',

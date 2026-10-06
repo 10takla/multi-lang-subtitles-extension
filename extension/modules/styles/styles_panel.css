@@ -366,3 +366,7 @@
 @media (max-width: 640px), (pointer: coarse) and (max-width: 960px) {
   .sc-widget .sc-embedded-style-actions .sc-btn-icon { height: 32px; min-height: 32px; }
 }
+.sc-widget .sc-embedded-style-grid,
+.sc-widget .sc-style-subgroup { gap: 6px 8px; }
+.sc-widget .sc-style-field { gap: 5px; }
+.sc-widget .sc-style-field .sc-style-select { padding-left: 5px; padding-right: 5px; }
