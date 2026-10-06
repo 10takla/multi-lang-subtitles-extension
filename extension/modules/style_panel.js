@@ -7,6 +7,110 @@
   window.__SC = window.__SC || {};
   const SC = window.__SC;
 
+  SC.resizeSliderValueInput = function(input) {
+    const canvas = SC._sliderMeasureCanvas || (SC._sliderMeasureCanvas = document.createElement('canvas'));
+    const context = canvas.getContext('2d');
+    const style = getComputedStyle(input);
+    context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const text = input.value || input.placeholder || '0';
+    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const border = (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0);
+    const extra = style.boxSizing === 'border-box' ? padding + border : 0;
+    input.style.width = `${Math.ceil(context.measureText(text).width + extra + 2)}px`;
+  };
+
+  SC.bindNumericValue = function(input, { getValue, setValue, getMin, getMax, getPlaceholder = () => '', live = true }) {
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.classList.add('sc-compact-slider-input');
+    const sync = () => {
+      input.placeholder = getPlaceholder();
+      if (input !== input.getRootNode().activeElement) input.value = input.placeholder ? '' : String(getValue());
+      SC.resizeSliderValueInput(input);
+    };
+    const apply = commit => {
+      const value = Number(input.value);
+      const valid = input.value.trim() !== '' && Number.isFinite(value);
+      if (valid && (commit || (live && value >= getMin() && value <= getMax()))) {
+        setValue(Math.max(getMin(), Math.min(getMax(), value)));
+      }
+      if (commit) input.value = getPlaceholder() ? '' : String(getValue());
+      SC.resizeSliderValueInput(input);
+    };
+    input.addEventListener('input', () => apply(false));
+    input.addEventListener('change', () => apply(true));
+    input.addEventListener('blur', () => {
+      const current = getPlaceholder() ? '' : String(getValue());
+      if (input.value !== current) apply(true);
+      input.value = getPlaceholder() ? '' : String(getValue());
+      sync();
+    });
+    input.addEventListener('keydown', event => {
+      event.stopPropagation();
+      if (event.key === 'Enter') { apply(true); input.blur(); }
+    });
+    ['pointerdown', 'mousedown', 'click'].forEach(type => input.addEventListener(type, event => event.stopPropagation()));
+    input._sliderValueSync = sync;
+    sync();
+    return sync;
+  };
+
+  SC.bindSliderValue = function(range, input, getPlaceholder = () => '') {
+    const sync = SC.bindNumericValue(input, {
+      getValue: () => range.value,
+      getMin: () => Number(range.min),
+      getMax: () => Number(range.max),
+      getPlaceholder,
+      setValue: value => {
+        range.value = String(value);
+        range.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    range.addEventListener('input', sync);
+    return sync;
+  };
+  function bindCompactSliderInputs(panel) {
+    if (panel._sliderValueObserver) panel._sliderValueObserver.disconnect();
+    const syncs = [];
+    panel.querySelectorAll('input[type="range"]').forEach(range => {
+      const field = range.closest('.sc-style-field');
+      const valueLabel = field?.querySelector('.sc-style-val');
+      if (!valueLabel) return;
+      const wrap = document.createElement('label');
+      wrap.className = 'sc-compact-slider-value';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.className = 'sc-compact-slider-input';
+      input.setAttribute('aria-label', field.querySelector('.sc-style-label')?.textContent || 'Значение');
+      const unit = document.createElement('span');
+      wrap.append(input, unit);
+      valueLabel.hidden = true;
+      valueLabel.style.display = 'none';
+      valueLabel.after(wrap);
+      const sync = () => {
+        const inherited = valueLabel.textContent.trim() === 'Inherit';
+        input.placeholder = inherited ? 'Inherit' : '';
+        if (input !== panel.getRootNode().activeElement) input.value = inherited ? '' : range.value;
+        const suffix = inherited ? '' : (valueLabel.textContent.includes('%') ? '%' : 'px');
+        if (unit.textContent !== suffix) unit.textContent = suffix;
+        SC.resizeSliderValueInput(input);
+      };
+      syncs.push(sync);
+      SC.bindSliderValue(range, input, () => valueLabel.textContent.trim() === 'Inherit' ? 'Inherit' : '');
+      sync();
+    });
+    const percentInput = panel.querySelector('#sc-gstyle-size-val');
+    if (percentInput) {
+      percentInput.classList.add('sc-compact-slider-input');
+      SC.bindSliderValue(panel.querySelector('#sc-gstyle-size'), percentInput);
+      syncs.push(() => SC.resizeSliderValueInput(percentInput));
+      SC.resizeSliderValueInput(percentInput);
+    }
+    const observer = new MutationObserver(() => syncs.forEach(sync => sync()));
+    observer.observe(panel, { childList: true, subtree: true, characterData: true });
+    panel._sliderValueObserver = observer;
+  }
   // Embedded Accordion Panel for individual language subtitle styles (ai_instrs/_.md:44-46)
   // Only two settings: 'выбор шрифта' and 'подложка текста селекторов' with Inherit or custom value
   SC.openLangStyleModal = function(item) {
@@ -361,6 +465,7 @@
       panel.dataset.activeItem = '';
     };
 
+    bindCompactSliderInputs(panel);
     panel.querySelector('#sc-style-embed-close').addEventListener('click', closePanel);
   };
 
@@ -714,16 +819,6 @@
       });
     }
 
-    sizeVal.addEventListener('input', () => {
-      if (!sizeVal.value || !sizeVal.validity.valid) return;
-      sizeRange.value = sizeVal.value;
-      applyGlobalChanges();
-    });
-    sizeVal.addEventListener('change', () => {
-      const value = Number(sizeVal.value);
-      sizeRange.value = Math.max(60, Math.min(200, Number.isFinite(value) && sizeVal.value ? value : gFont.fontSizePercent));
-      applyGlobalChanges();
-    });
     sizeRange.addEventListener('input', applyGlobalChanges);
     colorInput.addEventListener('input', applyGlobalChanges);
 
@@ -750,6 +845,7 @@
       if (SC.hideOverlaySkeleton) SC.hideOverlaySkeleton();
     };
 
+    bindCompactSliderInputs(panel);
     panel.querySelector('#sc-gstyle-embed-close').addEventListener('click', closePanel);
   };
 })();

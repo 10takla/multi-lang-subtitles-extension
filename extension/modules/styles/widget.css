@@ -623,3 +623,32 @@
   .sc-widget .sc-style-bg-row { flex-wrap: wrap; min-width: 0; max-width: 100%; }
   .sc-video-badge-btn { backdrop-filter: none; -webkit-backdrop-filter: none; transition: opacity 0.25s ease !important; }
 }
+@media (max-width: 640px), (pointer: coarse) and (max-width: 960px) {
+  .sc-widget .sc-title-area { display: flex; flex: 0 0 auto; overflow: visible; }
+  .sc-widget .sc-title-area > .sc-icon,
+  .sc-widget .sc-title-area > #sc-status { display: none; }
+  .sc-widget .sc-header-actions { width: auto; flex: 1; min-width: 0; }
+}
+.sc-widget #sc-btn-test-subtitles {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+.sc-widget #sc-btn-test-subtitles:hover { background: rgba(59, 130, 246, 0.28); }
+.sc-widget #sc-btn-test-subtitles.active { background: #2563eb; color: #fff; border-color: #93c5fd; }
+.sc-widget #sc-btn-test-subtitles {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px;
+}
+.sc-widget #sc-btn-test-subtitles svg { width: 14px; height: 14px; }
+.sc-widget #sc-btn-test-subtitles { font-weight: 600; font-size: 14px; }

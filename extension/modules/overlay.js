@@ -105,7 +105,7 @@
   SC.updateVideoOverlayPosition = function() {
     if (!SC.overlayEl) return;
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
-    if (!video || video.ownerDocument !== document || ((!SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) && !(SC.mobilePreview && SC.isMobilePanel?.()))) {
+    if (!video || video.ownerDocument !== document || ((!SC.state.currentActiveLine || SC.state.subtitlesEnabled === false) && !(SC.subtitleTestMode || (SC.mobilePreview && SC.isMobilePanel?.())))) {
       SC.overlayEl.classList.add('sc-hidden');
       if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
       return;
@@ -201,8 +201,8 @@
     if (!linesContainer) return;
 
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
-    const preview = Boolean(SC.mobilePreview && SC.isMobilePanel?.());
-    const activeLine = SC.state.currentActiveLine || (preview ? {
+    const preview = Boolean(SC.subtitleTestMode || (SC.mobilePreview && SC.isMobilePanel?.()));
+    const activeLine = (SC.subtitleTestMode ? null : SC.state.currentActiveLine) || (preview ? {
       text: 'Пример субтитров для настройки',
       translations: Object.fromEntries((SC.state.languages || []).map(item => [item.id, 'Subtitle preview / Пример перевода']))
     } : null);
@@ -219,6 +219,14 @@
     const scaleFactor = Math.max(0.7, Math.min(1.6, (vRect.width || 800) / 800));
     const dynamicFontSize = Math.round((SC.state.fontSize || 13) * scaleFactor);
 
+    const sampleText = item => {
+      const track = item.trackId || item.lang || 'auto';
+      const lang = item.mode === 'trans' || item.type === 'translation'
+        ? (item.targetLang || item.lang)
+        : (SC.resolveTrackLang ? SC.resolveTrackLang(track) : 'en');
+      const samples = { ru: 'Так будут выглядеть ваши субтитры.', en: 'This is how your subtitles will look.', es: 'Así se verán tus subtítulos.', de: 'So sehen Ihre Untertitel aus.', fr: 'Voici à quoi ressembleront vos sous-titres.' };
+      return samples[String(lang || '').split('-')[0]] || 'Subtitle preview / Пример субтитров';
+    };
     const entries = [];
     const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
 
@@ -230,6 +238,7 @@
         let trackText = (activeLine.trackTexts && activeLine.trackTexts[trackVal])
           ? activeLine.trackTexts[trackVal]
           : activeLine.text;
+        if (SC.subtitleTestMode) trackText = sampleText(item);
         trackText = (trackText || '').trim();
 
         const isTrackLoading = SC.isTrackLoading ? SC.isTrackLoading(trackVal) : false;
@@ -311,7 +320,7 @@
         `);
       } else {
         const targetLang = item.targetLang || item.lang || 'en';
-        const transText = activeLine.translations
+        const transText = SC.subtitleTestMode ? sampleText(item) : activeLine.translations
           ? (activeLine.translations[item.id] || activeLine.translations[targetLang] || null)
           : null;
         if (transText !== null && !transText.trim()) return;

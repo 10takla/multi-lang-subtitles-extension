@@ -450,7 +450,7 @@
         bufferWrap.className = 'sc-buffer-wrap';
         bufferWrap.title = `Буфер упреждения перевода (в символах, макс. ${engineMax})`;
         bufferWrap.innerHTML = `
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="sc-buffer-input" value="${item.bufferChars}" title="Буфер упреждения перевода в символах (макс. ${engineMax})">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" class="sc-buffer-input sc-compact-slider-input" value="${item.bufferChars}" title="Буфер упреждения перевода в символах (макс. ${engineMax})">
         `;
         const bufferInput = bufferWrap.querySelector('.sc-buffer-input');
 
@@ -462,6 +462,7 @@
           }
           if (bufferInput) {
             bufferInput.value = item.bufferChars;
+            SC.resizeSliderValueInput(bufferInput);
             bufferInput.title = `Буфер упреждения перевода в символах (макс. ${currentMax})`;
           }
           if (SC.retranslateItem) SC.retranslateItem(item);
@@ -474,25 +475,20 @@
         });
         controls.appendChild(engineSelect);
 
-        const onBufferChange = (e) => {
-          if (e.type === 'input') {
-            bufferInput.value = bufferInput.value.replace(/\D/g, '');
-          }
-          if (e.type === 'change' || e.type === 'blur') {
-            const val = parseInt(bufferInput.value, 10);
-            const currentMax = getEngineMax(item.engine);
-            item.bufferChars = isNaN(val) ? Math.min(1000, currentMax) : Math.max(1, Math.min(currentMax, val));
-            bufferInput.value = item.bufferChars;
+        SC.bindNumericValue(bufferInput, {
+          getValue: () => item.bufferChars,
+          getMin: () => 1,
+          getMax: () => getEngineMax(item.engine),
+          live: false,
+          setValue: value => {
+            item.bufferChars = Math.round(value);
             if (SC.prefetchUpcomingTranslations) {
-              const v = SC.getActiveVideo ? SC.getActiveVideo() : null;
-              SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
+              const video = SC.getActiveVideo ? SC.getActiveVideo() : null;
+              SC.prefetchUpcomingTranslations(video ? video.currentTime : 0, item.bufferChars);
             }
             if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
           }
-        };
-        bufferInput.addEventListener('input', onBufferChange);
-        bufferInput.addEventListener('change', onBufferChange);
-        bufferInput.addEventListener('blur', onBufferChange);
+        });
         controls.appendChild(bufferWrap);
       }
 
@@ -549,6 +545,7 @@
 
       row.appendChild(actions);
       container.appendChild(row);
+      row.querySelectorAll('.sc-compact-slider-input').forEach(SC.resizeSliderValueInput);
     });
   };
 })();

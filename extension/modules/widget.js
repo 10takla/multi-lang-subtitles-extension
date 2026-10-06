@@ -224,7 +224,8 @@
           <svg class="sc-icon" viewBox="0 0 24 24">
             <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
           </svg>
-          <span id="sc-status">Мультисубтитры</span>
+          <span id="sc-status">MultiSub</span>
+          <button type="button" class="sc-btn-icon" id="sc-btn-test-subtitles" title="Тестовый вид субтитров" aria-label="Тестовый вид субтитров" aria-pressed="false">Т</button>
         </div>
         <div class="sc-header-actions">
           <div class="sc-subtitles-toggle-wrap sc-disabled" id="sc-toggle-subtitles-wrap" title="Субтитры: Выкл">
@@ -246,6 +247,7 @@
               <button type="button" id="sc-btn-import-presets">Импорт пресетов</button>
             </div>
           </div>
+
           <button class="sc-btn-icon" id="sc-btn-global-styles" title="Общие стили субтитров (подложка, шрифт, пресеты)">🎨</button>
           <button class="sc-btn-icon" id="sc-btn-lang-tags" title="Тег языка перед субтитрами на видео (По умолчанию: выкл)" aria-label="Показывать теги языков"><span aria-hidden="true" style="font-size: 11px; font-weight: 600; line-height: 1">[EN]</span></button>
           <button class="sc-btn-icon" id="sc-btn-minimize" title="Свернуть">_</button>
@@ -268,15 +270,15 @@
         <div class="sc-pos-item">
           <span class="sc-pos-axis">X</span>
           <input type="range" class="sc-pos-slider" id="sc-slider-x" min="0" max="100" value="50" title="Позиционирование субтитров X (0-100%)">
-          <div class="sc-pos-input-wrap">
-            <input type="number" class="sc-pos-input" id="sc-input-x" min="0" max="100" value="50" title="Ввод координаты X (0-100%)"><span class="sc-pos-unit">%</span>
+          <div class="sc-pos-input-wrap sc-compact-slider-value">
+            <input type="number" class="sc-pos-input sc-compact-slider-input" id="sc-input-x" min="0" max="100" value="50" title="Ввод координаты X (0-100%)"><span class="sc-pos-unit">%</span>
           </div>
         </div>
         <div class="sc-pos-item">
           <span class="sc-pos-axis">Y</span>
           <input type="range" class="sc-pos-slider" id="sc-slider-y" min="0" max="100" value="90" title="Позиционирование субтитров Y (0-100%)">
-          <div class="sc-pos-input-wrap">
-            <input type="number" class="sc-pos-input" id="sc-input-y" min="0" max="100" value="90" title="Ввод координаты Y (0-100%)"><span class="sc-pos-unit">%</span>
+          <div class="sc-pos-input-wrap sc-compact-slider-value">
+            <input type="number" class="sc-pos-input sc-compact-slider-input" id="sc-input-y" min="0" max="100" value="90" title="Ввод координаты Y (0-100%)"><span class="sc-pos-unit">%</span>
           </div>
         </div>
       </div>
@@ -300,6 +302,9 @@
     shadow.appendChild(launcher);
 
     SC.widgetEl = widget;
+    // Keep native scrolling inside the panel without forwarding wheel gestures
+    // to the player that contains our host in fullscreen mode.
+    widget.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
     SC.launcherBtn = launcher;
     SC.listEl = null;
     SC.countBadge = null;
@@ -350,6 +355,13 @@
     const inputY = shadow.getElementById('sc-input-y');
     const langTagsBtn = shadow.getElementById('sc-btn-lang-tags');
     const globalStylesBtn = shadow.getElementById('sc-btn-global-styles');
+    const testSubtitlesBtn = shadow.getElementById('sc-btn-test-subtitles');
+    testSubtitlesBtn.addEventListener('click', () => {
+      SC.subtitleTestMode = !SC.subtitleTestMode;
+      testSubtitlesBtn.classList.toggle('active', SC.subtitleTestMode);
+      testSubtitlesBtn.setAttribute('aria-pressed', String(SC.subtitleTestMode));
+      if (SC.updateVideoOverlayContent) SC.updateVideoOverlayContent();
+    });
 
     // Global subtitle styles modal (ai_instrs/_.md:22-30)
     if (globalStylesBtn) {
@@ -410,10 +422,12 @@
       if (sliderX && inputX) {
         sliderX.value = SC.state.overlayPosX;
         inputX.value = SC.state.overlayPosX;
+        if (SC.resizeSliderValueInput) SC.resizeSliderValueInput(inputX);
       }
       if (sliderY && inputY) {
         sliderY.value = SC.state.overlayPosY;
         inputY.value = SC.state.overlayPosY;
+        if (SC.resizeSliderValueInput) SC.resizeSliderValueInput(inputY);
       }
     };
 
@@ -462,14 +476,14 @@
 
     attachPointerDrag(sliderX, (val) => {
       SC.state.overlayPosX = val;
-      if (inputX) inputX.value = val;
+      if (inputX) { inputX.value = val; if (SC.resizeSliderValueInput) SC.resizeSliderValueInput(inputX); }
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
     });
 
     attachPointerDrag(sliderY, (val) => {
       SC.state.overlayPosY = val;
-      if (inputY) inputY.value = val;
+      if (inputY) { inputY.value = val; if (SC.resizeSliderValueInput) SC.resizeSliderValueInput(inputY); }
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
       if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
     });
@@ -478,6 +492,7 @@
       sliderX.addEventListener('input', () => {
         SC.state.overlayPosX = Number(sliderX.value);
         inputX.value = SC.state.overlayPosX;
+        if (SC.resizeSliderValueInput) SC.resizeSliderValueInput(inputX);
         if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
         if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
@@ -487,50 +502,14 @@
       sliderY.addEventListener('input', () => {
         SC.state.overlayPosY = Number(sliderY.value);
         inputY.value = SC.state.overlayPosY;
+        if (SC.resizeSliderValueInput) SC.resizeSliderValueInput(inputY);
         if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
         if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
     }
 
-    // Direct numeric input handlers
-    const setupInputField = (input, slider, isX) => {
-      if (!input) return;
-
-      const applyValue = (rawVal) => {
-        let val = parseInt(rawVal, 10);
-        if (isNaN(val)) val = 0;
-        val = Math.max(0, Math.min(100, val));
-        input.value = val;
-        if (slider) slider.value = val;
-        if (isX) {
-          SC.state.overlayPosX = val;
-        } else {
-          SC.state.overlayPosY = val;
-        }
-        if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
-        if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
-      };
-
-      input.addEventListener('input', () => {
-        if (input.value === '') return;
-        applyValue(input.value);
-      });
-
-      input.addEventListener('change', () => {
-        applyValue(input.value);
-      });
-
-      input.addEventListener('blur', () => {
-        applyValue(input.value);
-      });
-
-      input.addEventListener('mousedown', (e) => e.stopPropagation());
-      input.addEventListener('click', (e) => e.stopPropagation());
-      input.addEventListener('keydown', (e) => e.stopPropagation());
-    };
-
-    setupInputField(inputX, sliderX, true);
-    setupInputField(inputY, sliderY, false);
+    SC.bindSliderValue(sliderX, inputX);
+    SC.bindSliderValue(sliderY, inputY);
 
     SC.syncPositionSliders();
 
