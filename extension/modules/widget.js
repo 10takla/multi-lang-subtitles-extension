@@ -624,6 +624,8 @@
     const presetNameInput = shadow.getElementById('sc-preset-name');
     const presetMenuBtn = shadow.getElementById('sc-btn-preset-menu');
     const presetMenu = shadow.getElementById('sc-preset-menu');
+    shadow.appendChild(presetMenu);
+    presetMenu.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
     function syncMobileHeader() {
       const mobile = SC.isMobilePanel();
       if (mobile) {

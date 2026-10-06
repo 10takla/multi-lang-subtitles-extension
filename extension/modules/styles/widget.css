@@ -660,3 +660,7 @@
 }
 .sc-widget #sc-btn-minimize:hover,
 .sc-widget #sc-btn-close:hover { color: #fff; background: rgba(255,255,255,0.12); }
+.sc-preset-menu { z-index: 2147483647; pointer-events: auto; max-height: calc(100dvh - 8px); overflow-y: auto; }
+@media (max-width: 640px), (pointer: coarse) and (max-width: 960px) {
+  .sc-preset-menu button { min-height: 44px; font-size: 14px; }
+}
