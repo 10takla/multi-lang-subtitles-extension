@@ -301,7 +301,7 @@
           ? 'justify-content: center !important;'
           : (textAlign === 'right' ? 'justify-content: flex-end !important;' : 'justify-content: flex-start !important;');
 
-        const tagHTML = showTags ? `<span class="sc-vol-tag">${SC.escapeHtml(tag)}</span>` : '';
+        const tagHTML = showTags ? `<span class="sc-vol-tag" style="font-size: ${lineFontSize}px !important;">${SC.escapeHtml(tag)}</span>` : '';
         const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
           <div class="sc-vol-line sc-vol-track" style="${lineAlignStyle}">
@@ -374,7 +374,7 @@
           : (textAlign === 'right' ? 'justify-content: flex-end !important;' : 'justify-content: flex-start !important;');
 
         const tag = SC.getLangName(targetLang).slice(0, 3).toUpperCase();
-        const tagHTML = showTags ? `<span class="sc-vol-tag">${tag}</span>` : '';
+        const tagHTML = showTags ? `<span class="sc-vol-tag" style="font-size: ${lineFontSize}px !important;">${tag}</span>` : '';
         const spinnerHTML = SC.getLoadingSpinnerHtml ? SC.getLoadingSpinnerHtml() : '<span class="sc-vol-loading"><span class="sc-loading-spinner"></span></span>';
         entries.push(`
           <div class="sc-vol-line sc-vol-trans" style="${lineAlignStyle}">

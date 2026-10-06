@@ -77,7 +77,7 @@
     SC.widgetEl.classList.remove('sc-hidden');
 
     if (SC.isMobilePanel()) {
-      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '70dvh'});
+      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '50svh'});
       return;
     }
     const pad = 6;
@@ -993,7 +993,7 @@
         const elW = element.offsetWidth;
         const elH = element.offsetHeight;
         if (SC.isMobilePanel()) {
-      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '70dvh'});
+      Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '50svh'});
       return;
     }
     const pad = 6;

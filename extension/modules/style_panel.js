@@ -537,9 +537,9 @@
             <label class="sc-style-label">Размер:</label>
             <div class="sc-style-size-row">
               <button type="button" class="sc-style-btn-step" id="sc-gstyle-size-dec" title="Уменьшить шрифт">A−</button>
-              <input type="range" class="sc-style-range" id="sc-gstyle-size" min="60" max="200" step="5" value="${gFont.fontSizePercent || 100}">
+              <input type="range" class="sc-style-range" id="sc-gstyle-size" min="60" max="200" step="1" value="${gFont.fontSizePercent || 100}">
               <button type="button" class="sc-style-btn-step" id="sc-gstyle-size-inc" title="Увеличить шрифт">A+</button>
-              <span class="sc-style-val" id="sc-gstyle-size-val">${gFont.fontSizePercent || 100}%</span>
+              <label class="sc-style-percent"><input type="number" class="sc-style-percent-input" id="sc-gstyle-size-val" min="60" max="200" step="1" value="${gFont.fontSizePercent || 100}" aria-label="Размер шрифта в процентах"><span>%</span></label>
             </div>
           </div>
           <div class="sc-style-field">
@@ -612,7 +612,7 @@
       gFont.fontWeight = weightSel.value;
       gFont.fontStyle = styleSel.value;
       gFont.fontSizePercent = parseInt(sizeRange.value, 10) || 100;
-      sizeVal.textContent = `${gFont.fontSizePercent}%`;
+      sizeVal.value = gFont.fontSizePercent;
       gFont.textColor = colorInput.value;
 
       if (SC.updateVideoOverlayPosition) SC.updateVideoOverlayPosition();
@@ -714,6 +714,16 @@
       });
     }
 
+    sizeVal.addEventListener('input', () => {
+      if (!sizeVal.value || !sizeVal.validity.valid) return;
+      sizeRange.value = sizeVal.value;
+      applyGlobalChanges();
+    });
+    sizeVal.addEventListener('change', () => {
+      const value = Number(sizeVal.value);
+      sizeRange.value = Math.max(60, Math.min(200, Number.isFinite(value) && sizeVal.value ? value : gFont.fontSizePercent));
+      applyGlobalChanges();
+    });
     sizeRange.addEventListener('input', applyGlobalChanges);
     colorInput.addEventListener('input', applyGlobalChanges);
 

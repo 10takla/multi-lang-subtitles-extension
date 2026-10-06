@@ -96,13 +96,13 @@
 .sc-vol-tag {
   font-size: 10px !important;
   font-weight: 700 !important;
-  padding: 1px 4px !important;
+  padding: 0 !important;
   border-radius: 3px !important;
   background: rgba(255, 255, 255, 0.15) !important;
   color: #94a3b8 !important;
   white-space: nowrap !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
+  letter-spacing: normal !important;
 }
 
 .sc-vol-source .sc-vol-tag {

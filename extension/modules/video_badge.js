@@ -330,8 +330,8 @@
       const top = SC.isMobilePanel?.() ? rect.top + pad : Math.max(minTop, Math.min(maxTop, visibleTop + pad));
 
       btn.style.display = 'flex';
-      btn.style.top = `${Math.round(top)}px`;
-      btn.style.left = `${Math.round(left)}px`;
+      btn.style.top = `${SC.isMobilePanel?.() ? top : Math.round(top)}px`;
+      btn.style.left = `${SC.isMobilePanel?.() ? left : Math.round(left)}px`;
     }
   };
 })();
