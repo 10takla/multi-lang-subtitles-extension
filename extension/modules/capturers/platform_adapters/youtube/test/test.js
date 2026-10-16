@@ -255,9 +255,10 @@
         testCases.push({ name: 'Background renders preserve language dropdowns', passed: Boolean(stableSelect) });
         allPassed = allPassed && Boolean(stableSelect);
 
-        originalSelect.focus({ preventScroll: true });
         SC.widgetEl = widget;
         SC.state.widgetVisible = true;
+        SC.updateWidgetPosition();
+        originalSelect.focus({ preventScroll: true });
         widget.style.left = '123px';
         SC.updateWidgetPosition();
         const anchored = SC.shadowRoot.activeElement === originalSelect && widget.style.left === '123px';
@@ -281,6 +282,69 @@
         SC.state.widgetVisible = widgetVisible;
         testHost.remove();
         SC.renderLanguageList();
+      }
+
+      // Discovery must react to actual DOM and TextTrackList events, without a timer.
+      const lateVideo = document.createElement('video');
+      lateVideo.style.display = 'none';
+      document.body.appendChild(lateVideo);
+      try {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        const discovered = SC.hookedVideos.has(lateVideo);
+        testCases.push({ name: 'Dynamically added video is discovered by its DOM event', passed: discovered });
+        allPassed = allPassed && discovered;
+
+        const lateTrack = lateVideo.addTextTrack('subtitles', 'Late test track', 'fr');
+        await new Promise(resolve => setTimeout(resolve, 20));
+        const trackHooked = SC.hookedTracks.has(lateTrack);
+        testCases.push({ name: 'Dynamically added native track is hooked without a scan timer', passed: trackHooked });
+        allPassed = allPassed && trackHooked;
+      } finally {
+        lateVideo.remove();
+      }
+      await new Promise(resolve => setTimeout(resolve, 20));
+      const scanForVideos = SC.scanForVideos;
+      let idleScans = 0;
+      SC.scanForVideos = (...args) => {
+        idleScans++;
+        return scanForVideos(...args);
+      };
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        const idle = idleScans === 0;
+        testCases.push({ name: 'Idle page performs no periodic video scans', passed: idle });
+        allPassed = allPassed && idle;
+      } finally {
+        SC.scanForVideos = scanForVideos;
+      }
+
+      const subtitlesEnabled = SC.state.subtitlesEnabled;
+      const fetchBeforeEconomyTest = window.fetch;
+      const translationKey = 'google_en_ru_Economy mode test';
+      let translationRequests = 0;
+      try {
+        SC.state.translationCache.delete(translationKey);
+        window.fetch = async (input, options) => {
+          if (String(input).includes('translate.googleapis.com')) {
+            translationRequests++;
+            return new Response(JSON.stringify([[['Economy mode translation']]]));
+          }
+          return fetchBeforeEconomyTest(input, options);
+        };
+        SC.state.subtitlesEnabled = false;
+        SC.syncTranslationActivity();
+        const disabledResult = await SC.fetchTranslation('Economy mode test', 'ru', 'en');
+        SC.state.subtitlesEnabled = true;
+        SC.syncTranslationActivity();
+        const enabledResult = await SC.fetchTranslation('Economy mode test', 'ru', 'en');
+        const economyPassed = disabledResult === null && enabledResult === 'Economy mode translation' && translationRequests === 1;
+        testCases.push({ name: 'Translation requests stop when subtitles are disabled and resume when enabled', passed: economyPassed });
+        allPassed = allPassed && economyPassed;
+      } finally {
+        window.fetch = fetchBeforeEconomyTest;
+        SC.state.translationCache.delete(translationKey);
+        SC.state.subtitlesEnabled = subtitlesEnabled;
+        SC.syncTranslationActivity();
       }
 
       // Test 4: Live Stand capture() execution

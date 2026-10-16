@@ -200,7 +200,14 @@
       }
     });
 
-    SC.shadowRoot.appendChild(iconBtn);
+    const iconHost = document.createElement('div');
+    iconHost.className = 'sc-video-layer';
+    const iconShadow = iconHost.attachShadow({ mode: 'open' });
+    for (const style of SC.shadowRoot.querySelectorAll('link[rel="stylesheet"], style')) {
+      iconShadow.appendChild(style.cloneNode(true));
+    }
+    iconShadow.appendChild(iconBtn);
+    SC.syncVideoLayer(iconHost, video);
     SC.videoIcons.set(video, iconBtn);
 
     // Setup autohide listeners (ai_instrs/_.md:43)
@@ -289,6 +296,36 @@
     SC.updateVideoIconsState();
   };
 
+  // Use the video's scrolling containing block instead of chasing viewport scrolling.
+  SC.setVideoElementPosition = function(element, left, top) {
+    element.style.setProperty('position', 'absolute', 'important');
+    const parent = element.offsetParent;
+    const doc = element.ownerDocument || document;
+    const view = doc.defaultView || window;
+    const isDocumentOrigin = !parent ||
+      (parent === doc.body && view.getComputedStyle(parent).position === 'static');
+    if (isDocumentOrigin) {
+      left += view.scrollX || 0;
+      top += view.scrollY || 0;
+    } else {
+      const origin = parent.getBoundingClientRect();
+      left += (parent.scrollLeft || 0) - origin.left - (parent.clientLeft || 0);
+      top += (parent.scrollTop || 0) - origin.top - (parent.clientTop || 0);
+    }
+    element.style.left = `${left}px`;
+    element.style.top = `${top}px`;
+  };
+
+  SC.syncVideoLayer = function(host, video) {
+    if (!host || !video.parentNode) return;
+    if (host.parentNode !== video.parentNode) video.parentNode.appendChild(host);
+    host.classList.add('sc-video-layer');
+    const rect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
+    SC.setVideoElementPosition(host, rect.left, rect.top);
+    host.style.width = `${rect.width}px`;
+    host.style.height = `${rect.height}px`;
+  };
+
   // Update positions for all on-video launcher icons strictly within video detect window
   SC.updateVideoIconsPosition = function() {
     if (!SC.videoIcons || SC.videoIcons.size === 0) return;
@@ -300,49 +337,22 @@
           data.cleanup();
           SC.videoIconData.delete(video);
         }
-        btn.remove();
+        btn.getRootNode().host.remove();
         SC.videoIcons.delete(video);
         continue;
       }
 
       const rect = SC.getVideoBoundingClientRect ? SC.getVideoBoundingClientRect(video) : video.getBoundingClientRect();
       if (rect.width < 50 || rect.height < 50 || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
-        btn.style.display = 'none';
+        btn.style.setProperty('display', 'none', 'important');
         continue;
       }
 
-      if (SC.isMobilePanel?.() && SC.hostEl) {
-        const origin = SC.hostEl.getBoundingClientRect();
-        btn.style.setProperty('position', 'absolute', 'important');
-        const top = `${rect.top - origin.top + 10}px`;
-        const left = `${rect.right - origin.left - 42}px`;
-        if (btn.style.top !== top) btn.style.top = top;
-        if (btn.style.left !== left) btn.style.left = left;
-        btn.style.display = 'flex';
-        continue;
-      }
-      btn.style.setProperty('position', 'fixed', 'important');
-      const iconW = 32;
-      const iconH = 32;
-      const pad = 10;
-
-      // Ensure icon stays strictly within the visible intersection of video and viewport (ai_instrs/_.md:8)
-      const visibleTop = Math.max(0, rect.top);
-      const visibleBottom = Math.min(window.innerHeight, rect.bottom);
-      const visibleLeft = Math.max(0, rect.left);
-      const visibleRight = Math.min(window.innerWidth, rect.right);
-
-      const minLeft = visibleLeft + pad;
-      const maxLeft = Math.max(minLeft, visibleRight - iconW - pad);
-      const minTop = visibleTop + pad;
-      const maxTop = Math.max(minTop, visibleBottom - iconH - pad);
-
-      const left = Math.max(minLeft, Math.min(maxLeft, visibleRight - iconW - pad));
-      const top = SC.isMobilePanel?.() ? rect.top + pad : Math.max(minTop, Math.min(maxTop, visibleTop + pad));
-
-      btn.style.display = 'flex';
-      btn.style.top = `${SC.isMobilePanel?.() ? top : Math.round(top)}px`;
-      btn.style.left = `${SC.isMobilePanel?.() ? left : Math.round(left)}px`;
+      SC.syncVideoLayer(btn.getRootNode().host, video);
+      btn.style.setProperty('position', 'absolute', 'important');
+      btn.style.setProperty('display', 'flex', 'important');
+      btn.style.top = '10px';
+      btn.style.left = `${rect.width - 42}px`;
     }
   };
 })();

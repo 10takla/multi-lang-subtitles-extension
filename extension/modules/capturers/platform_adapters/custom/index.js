@@ -12,7 +12,7 @@
   SC.customActiveCues = [];
   SC.customTrackCues = new Map();
 
-  let lastScriptScanCount = 0;
+  const scannedScripts = new WeakMap();
 
   /**
    * Helper to convert time strings (00:00:00.000 or 00:00:00,000) to seconds.
@@ -99,6 +99,7 @@
           } catch (_) {}
         });
         if (SC.renderLanguageList) SC.renderLanguageList();
+        if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
         if (SC.prefetchUpcomingTranslations) {
           const vTime = (SC.getActiveVideo ? SC.getActiveVideo()?.currentTime : null) || 0;
           SC.prefetchUpcomingTranslations(vTime, 60);
@@ -112,18 +113,16 @@
   /**
    * Scans page scripts, config objects, and <track> elements for custom subtitle files.
    */
-  /**
-   * Scans page scripts, config objects, and <track> elements for custom subtitle files.
-   */
-  SC.scanPageForSubtitleTracks = function() {
+  SC.scanPageForSubtitleTracks = function({ registerVideos = true } = {}) {
     const docs = SC.getAccessibleDocuments ? SC.getAccessibleDocuments() : [document];
-    let foundNew = false;
 
     docs.forEach((doc, docIdx) => {
       try {
         const scripts = doc.querySelectorAll('script');
         scripts.forEach((s, idx) => {
           const content = s.textContent || '';
+          if (scannedScripts.get(s) === content) return;
+          scannedScripts.set(s, content);
           if (!content || (!content.includes('subtitle') && !content.includes('.vtt') && !content.includes('.srt') && !content.includes('cc:') && !/["']?cc["']?\s*:/i.test(content))) return;
 
           // 1. Match Playerjs / standard: subtitle[s]: "..."
@@ -144,7 +143,6 @@
                 if (!SC.customCaptionTracks.some(t => t.url === url)) {
                   SC.customCaptionTracks.push({ id: trackId, label, url });
                   SC.loadCustomSubtitleUrl(url, trackId, label);
-                  foundNew = true;
                 }
               }
             });
@@ -169,7 +167,6 @@
                     const trackId = `custom:cc_${docIdx}_${idx}_${cIdx++}`;
                     SC.customCaptionTracks.push({ id: trackId, label: name, url });
                     SC.loadCustomSubtitleUrl(url, trackId, name);
-                    foundNew = true;
                   }
                 });
               } else {
@@ -182,7 +179,6 @@
                     const trackId = `custom:cc_${docIdx}_${idx}_${cIdx++}`;
                     SC.customCaptionTracks.push({ id: trackId, label: name, url });
                     SC.loadCustomSubtitleUrl(url, trackId, name);
-                    foundNew = true;
                   }
                 }
               }
@@ -198,7 +194,6 @@
               const trackId = `custom:vtt_${docIdx}_${idx}_${vIdx++}`;
               SC.customCaptionTracks.push({ id: trackId, label: 'Субтитры', url });
               SC.loadCustomSubtitleUrl(url, trackId, 'Субтитры');
-              foundNew = true;
             }
           }
         });
@@ -213,7 +208,6 @@
             if (!SC.customCaptionTracks.some(t => t.url === src)) {
               SC.customCaptionTracks.push({ id: trackId, label, url: src });
               SC.loadCustomSubtitleUrl(src, trackId, label);
-              foundNew = true;
             }
           }
         });
@@ -221,7 +215,7 @@
     });
 
     // If custom subtitle tracks were found, register all video elements immediately
-    if (SC.customCaptionTracks.length > 0 && SC.registerVideoWithSubtitles) {
+    if (registerVideos && SC.customCaptionTracks.length > 0 && SC.registerVideoWithSubtitles) {
       docs.forEach(doc => {
         try {
           const videos = doc.querySelectorAll('video');

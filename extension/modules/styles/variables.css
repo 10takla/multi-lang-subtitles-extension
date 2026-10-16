@@ -26,6 +26,17 @@
   --sc-danger: #ef4444;
 }
 
+:host(.sc-video-layer) {
+  position: absolute !important;
+  display: block !important;
+  overflow: clip !important;
+  z-index: 60 !important;
+  pointer-events: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
 .sc-widget,
 .sc-launcher-btn,
 .sc-video-overlay,

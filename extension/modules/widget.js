@@ -60,6 +60,7 @@
   };
 
   // Adjust control panel position strictly within video detect window boundaries (ai_instrs/_.md:8)
+  let widgetPositionSnapshot = null;
   SC.updateWidgetPosition = function() {
     if (!SC.widgetEl || !SC.state.widgetVisible) return;
     const video = SC.getLocalVideo ? SC.getLocalVideo() : document.querySelector('video');
@@ -69,6 +70,13 @@
     }
 
     if (SC.isMobilePanel()) {
+      if (SC.hostEl) {
+        SC.hostEl.classList.remove('sc-video-layer');
+        Object.assign(SC.hostEl.style, { left: '0', top: '0', width: '0', height: '0' });
+        SC.hostEl.style.setProperty('position', 'absolute', 'important');
+        if (SC.hostEl.parentNode !== document.body) document.body.appendChild(SC.hostEl);
+      }
+      SC.widgetEl.style.setProperty('position', 'fixed', 'important');
       SC.widgetEl.classList.remove('sc-hidden');
       if (SC.widgetEl.style.maxHeight !== '50svh') {
         Object.assign(SC.widgetEl.style, {left: '0', right: '0', top: 'auto', bottom: '0', maxWidth: '100%', maxHeight: '50svh'});
@@ -81,21 +89,20 @@
       return;
     }
 
-    // Keep the native popup anchored while the user is choosing an option.
+    // Keep a popup steady only while the video itself has not moved or resized.
     const focused = SC.shadowRoot?.activeElement;
-    if (focused?.tagName === 'SELECT' && SC.widgetEl.contains(focused)) return;
+    const bounds = [vRect.left, vRect.top, vRect.width, vRect.height];
+    if (focused?.tagName === 'SELECT' && SC.widgetEl.contains(focused) &&
+        !SC.widgetEl.classList.contains('sc-hidden') &&
+        widgetPositionSnapshot?.widget === SC.widgetEl && widgetPositionSnapshot.video === video &&
+        bounds.every((value, index) => value === widgetPositionSnapshot.bounds[index])) return;
 
     SC.widgetEl.classList.remove('sc-hidden');
 
     const pad = 6;
-    const vTop = Math.max(0, vRect.top);
-    const vBottom = Math.min(window.innerHeight, vRect.bottom);
-    const vLeft = Math.max(0, vRect.left);
-    const vRight = Math.min(window.innerWidth, vRect.right);
-
     // Constrain maximum panel dimensions to video detect window
-    SC.widgetEl.style.maxWidth = `${Math.max(260, Math.round((vRight - vLeft) - (pad * 2)))}px`;
-    SC.widgetEl.style.maxHeight = `${Math.max(160, Math.round((vBottom - vTop) - (pad * 2)))}px`;
+    SC.widgetEl.style.maxWidth = `${Math.max(260, Math.round(vRect.width - (pad * 2)))}px`;
+    SC.widgetEl.style.maxHeight = `${Math.max(160, Math.round(vRect.height - (pad * 2)))}px`;
 
     const elW = SC.widgetEl.offsetWidth || 340;
     const elH = SC.widgetEl.offsetHeight || 220;
@@ -113,17 +120,18 @@
       targetTop = vRect.top + SC.state.widgetVideoRelY;
     } else {
       // Default position inside video detect window: near top-right
-      targetLeft = vRight - elW - 12;
-      targetTop = vTop + 12;
+      targetLeft = vRect.right - elW - 12;
+      targetTop = vRect.top + 12;
     }
 
     targetLeft = Math.max(minX, Math.min(maxX, targetLeft));
     targetTop = Math.max(minY, Math.min(maxY, targetTop));
 
-    SC.widgetEl.style.left = `${Math.round(targetLeft)}px`;
-    SC.widgetEl.style.top = `${Math.round(targetTop)}px`;
+    SC.syncVideoLayer(SC.hostEl, video);
+    SC.setVideoElementPosition(SC.widgetEl, targetLeft, targetTop);
     SC.widgetEl.style.right = 'auto';
     SC.widgetEl.style.bottom = 'auto';
+    widgetPositionSnapshot = { widget: SC.widgetEl, video, bounds };
   };
 
   // Coalesced rAF-throttled position updater for overlay, icons, and control panel
@@ -176,6 +184,7 @@
     const baseStyle = document.createElement('style');
     baseStyle.textContent = `
       :host, #subtitles-capturer-host { position: fixed; z-index: 2147483647; pointer-events: none; }
+      :host(.sc-video-layer) { position: absolute !important; display: block !important; overflow: clip !important; z-index: 60 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
       .sc-hidden { display: none !important; }
       .sc-video-badge-btn {
         position: fixed !important;
@@ -309,6 +318,10 @@
     shadow.appendChild(launcher);
 
     SC.widgetEl = widget;
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => SC.scheduleUpdatePositions());
+      observer.observe(widget);
+    }
     // Keep native scrolling inside the panel without forwarding wheel gestures
     // to the player that contains our host in fullscreen mode.
     widget.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
@@ -541,6 +554,7 @@
 
       toggleSubtitles.addEventListener('change', () => {
         SC.state.subtitlesEnabled = toggleSubtitles.checked;
+        if (SC.syncTranslationActivity) SC.syncTranslationActivity();
         updateToggleUI();
         showStatus(SC.state.subtitlesEnabled ? 'Субтитры включены' : 'Субтитры выключены');
         if (SC.state.subtitlesEnabled) {
@@ -1019,8 +1033,7 @@
         newLeft = Math.max(minX, Math.min(maxX, newLeft));
         newTop = Math.max(minY, Math.min(maxY, newTop));
 
-        element.style.left = `${Math.round(newLeft)}px`;
-        element.style.top = `${Math.round(newTop)}px`;
+        SC.setVideoElementPosition(element, newLeft, newTop);
         element.style.right = 'auto';
         element.style.bottom = 'auto';
 

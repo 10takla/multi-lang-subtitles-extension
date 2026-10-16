@@ -8,9 +8,12 @@
   const SC = window.__SC;
 
   const inFlightRequests = new Map();
+  let activityGeneration = 0;
+  const translationsEnabled = () => SC.state?.subtitlesEnabled === true;
 
   // Translate text via background script or client APIs with engine support (Google, Yandex, Chrome)
   SC.fetchTranslation = async function(text, targetLang, sourceLang = 'auto', engine = 'google') {
+    if (!translationsEnabled()) return null;
     if (!text || !targetLang) return null;
     const cleanSourceText = SC.cleanText(text);
     if (!cleanSourceText) return null;
@@ -40,6 +43,7 @@
               sourceLanguage: normSourceLang === 'auto' ? 'en' : normSourceLang,
               targetLanguage: normTargetLang
             });
+            if (!translationsEnabled()) return null;
             const res = await translator.translate(cleanSourceText);
             if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
               SC.state.translationCache.set(cacheKey, res.trim());
@@ -50,6 +54,7 @@
               sourceLanguage: normSourceLang === 'auto' ? 'en' : normSourceLang,
               targetLanguage: normTargetLang
             });
+            if (!translationsEnabled()) return null;
             const res = await translator.translate(cleanSourceText);
             if (res && (res !== cleanSourceText || normSourceLang === normTargetLang)) {
               SC.state.translationCache.set(cacheKey, res.trim());
@@ -71,7 +76,9 @@
 
     const promise = new Promise((resolve) => {
       const doDirectFetch = () => {
+        if (!translationsEnabled()) { resolve(null); return; }
         const fetchGoogle = (clientName = 'dict-chrome-ex') => {
+          if (!translationsEnabled()) { resolve(null); return Promise.resolve(true); }
           const gUrl = `https://translate.googleapis.com/translate_a/single?client=${encodeURIComponent(clientName)}&sl=${encodeURIComponent(normSourceLang)}&tl=${encodeURIComponent(normTargetLang)}&dt=t&q=${encodeURIComponent(cleanSourceText)}`;
           return fetch(gUrl)
             .then(r => {
@@ -189,6 +196,7 @@
 
   // Prefetch translations for upcoming subtitle cues ahead of time (packing whole cues up to engine maxChars)
   SC.prefetchUpcomingTranslations = function(currentTime = null, bufferChars = null) {
+    if (!translationsEnabled()) return;
     if (!SC.getUpcomingCues) return;
 
     const translationItems = SC.state.languages.filter(l => (l.mode === 'trans' || l.type === 'translation') && l.mode !== 'track');
@@ -274,6 +282,8 @@
 
   // Re-translate lines for a specific language configuration item
   SC.retranslateItem = function(item) {
+    if (!translationsEnabled()) return;
+    const generation = activityGeneration;
     if (!item || item.mode === 'track') return;
     const defaultSourceTrack = getSublistDefaultTrack();
     const sourceTrack = (item.sourceTrack && item.sourceTrack !== 'auto')
@@ -316,6 +326,7 @@
         }
       } else {
         SC.fetchTranslation(sourceText, normTargetLang, normSourceLang, engine).then(trans => {
+          if (!translationsEnabled() || generation !== activityGeneration) return;
           if (trans && (trans !== sourceText || normSourceLang === normTargetLang)) {
             l.translations[item.id] = trans;
             l.translations[normTargetLang] = trans;
@@ -338,6 +349,8 @@
 
   // Translate a single subtitle line for all active translation items
   SC.translateLine = function(line) {
+    if (!translationsEnabled()) return;
+    const generation = activityGeneration;
     if (!line || !line.text) return;
     if (!line.translations) line.translations = {};
 
@@ -379,6 +392,7 @@
             line.translations[normTargetLang] = cached;
           } else {
             SC.fetchTranslation(sourceText, normTargetLang, normSourceLang, engine).then(trans => {
+              if (!translationsEnabled() || generation !== activityGeneration) return;
               if (trans && (trans !== sourceText || normSourceLang === normTargetLang)) {
                 line.translations[langItem.id] = trans;
                 line.translations[normTargetLang] = trans;
@@ -399,5 +413,17 @@
         }
       }
     });
+  };
+
+  // Resume the visible line immediately, including while the video is paused.
+  SC.syncTranslationActivity = function() {
+    activityGeneration++;
+    if (!translationsEnabled()) return;
+    const line = SC.state.currentActiveLine;
+    if (line) {
+      line.translations = {};
+      SC.translateLine(line);
+    }
+    SC.prefetchUpcomingTranslations();
   };
 })();

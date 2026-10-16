@@ -57,7 +57,6 @@
     if (SC.initLifecycle) SC.initLifecycle();
 
     if (SC.scanForVideos) SC.scanForVideos();
-    if (SC.scanPageForSubtitleTracks) SC.scanPageForSubtitleTracks();
     if (SC.setupDOMSubtitleObserver) SC.setupDOMSubtitleObserver();
 
     window.__subtitlesCapturerInjected = true;

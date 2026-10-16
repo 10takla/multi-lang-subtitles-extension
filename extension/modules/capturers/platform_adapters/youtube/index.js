@@ -72,6 +72,7 @@
         if (SC.renderLanguageList) {
           SC.renderLanguageList();
         }
+        if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
 
         // Auto-load primary track timedtext if not loaded yet
         const primaryTrack = tracks[0];

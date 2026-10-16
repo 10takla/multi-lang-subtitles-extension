@@ -106,8 +106,7 @@
     const el = SC.overlaySkeletonEl;
     el.style.width = `${targetW}px`;
     el.style.height = `${targetH}px`;
-    el.style.left = `${Math.round(posX)}px`;
-    el.style.top = `${Math.round(posY)}px`;
+    SC.setVideoElementPosition(el, posX, posY);
     el.textContent = `Макс. ширина: ${pct}% (${targetW}px)`;
     el.classList.remove('sc-hidden');
     el.classList.add('sc-skeleton-active');
@@ -214,8 +213,7 @@
     posX = Math.max(minX, Math.min(maxX, posX));
     posY = Math.max(minY, Math.min(maxY, posY));
 
-    SC.overlayEl.style.left = `${Math.round(posX)}px`;
-    SC.overlayEl.style.top = `${Math.round(posY)}px`;
+    SC.setVideoElementPosition(SC.overlayEl, posX, posY);
     SC.overlayEl.style.visibility = '';
     if (SC.updateVideoIconsPosition) SC.updateVideoIconsPosition();
   };
@@ -466,8 +464,7 @@
         newLeft = Math.max(vRect.left, Math.min(vRect.right - oW, newLeft));
         newTop = Math.max(vRect.top, Math.min(vRect.bottom - oH, newTop));
 
-        element.style.left = `${Math.round(newLeft)}px`;
-        element.style.top = `${Math.round(newTop)}px`;
+        SC.setVideoElementPosition(element, newLeft, newTop);
 
         const availW = Math.max(1, vRect.width - oW);
         const availH = Math.max(1, vRect.height - oH);

@@ -9,6 +9,7 @@
   const SC = window.__SC;
 
   SC.hookedTracks = new WeakSet();
+  const hookedVideos = new WeakSet();
 
   /**
    * Ensures the text track is in 'hidden' mode rather than 'disabled'
@@ -140,14 +141,14 @@
    * Hooks a single HTML5 TextTrack instance and listens for cue changes.
    */
   SC.hookTrack = function(video, track) {
-    if (!track || SC.hookedTracks.has(track)) return;
+    if (!track) return;
+    SC.ensureHiddenMode(track);
+    if (SC.hookedTracks.has(track)) return;
     SC.hookedTracks.add(track);
 
     if (video && SC.registerVideoWithSubtitles) {
       SC.registerVideoWithSubtitles(video);
     }
-
-    SC.ensureHiddenMode(track);
 
     const handleCueChange = () => {
       const primarySelector = SC.state && SC.state.languages
@@ -181,40 +182,27 @@
    * Hooks all current and future textTracks for a given video element.
    */
   SC.hookHTML5Tracks = function(video) {
-    if (!video || !video.textTracks) return;
+    if (!video || !video.textTracks || hookedVideos.has(video)) return;
+    hookedVideos.add(video);
 
     for (let i = 0; i < video.textTracks.length; i++) {
       const tr = video.textTracks[i];
-      SC.ensureHiddenMode(tr);
       SC.hookTrack(video, tr);
     }
 
-    video.textTracks.addEventListener('addtrack', (e) => {
-      if (e.track) {
-        SC.ensureHiddenMode(e.track);
-        SC.hookTrack(video, e.track);
-      }
-    });
-
-    video.textTracks.addEventListener('change', () => {
+    const refreshTracks = () => {
       for (let i = 0; i < video.textTracks.length; i++) {
         const tr = video.textTracks[i];
-        SC.ensureHiddenMode(tr);
         SC.hookTrack(video, tr);
       }
-    });
+      if (SC.renderLanguageList) SC.renderLanguageList();
+      if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
+    };
+    video.textTracks.addEventListener('addtrack', refreshTracks);
+    video.textTracks.addEventListener('removetrack', refreshTracks);
+    video.textTracks.addEventListener('change', refreshTracks);
+    video.addEventListener('load', refreshTracks, true);
 
-    // Observe dynamic <track> elements added into <video>
-    const trackObserver = new MutationObserver(() => {
-      if (video.textTracks) {
-        for (let i = 0; i < video.textTracks.length; i++) {
-          const tr = video.textTracks[i];
-          SC.ensureHiddenMode(tr);
-          SC.hookTrack(video, tr);
-        }
-      }
-    });
-    trackObserver.observe(video, { childList: true });
   };
 
   const HTML5Capturer = {

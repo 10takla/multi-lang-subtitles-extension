@@ -1,6 +1,6 @@
 /**
  * Video Subtitles Capturer - Lifecycle & View Synchronization Module
- * Manages viewport resize/scroll listeners, fullscreen mode tracking, and periodic scanning.
+ * Manages viewport, fullscreen, media, and navigation events without periodic scanning.
  */
 
 (() => {
@@ -14,7 +14,7 @@
     // Viewport position updates
     if (SC.scheduleUpdatePositions) {
       window.addEventListener('resize', SC.scheduleUpdatePositions, { passive: true });
-      window.addEventListener('scroll', SC.scheduleUpdatePositions, { passive: true });
+      window.addEventListener('scroll', SC.scheduleUpdatePositions, { passive: true, capture: true });
     }
 
     // Fullscreen alignment handling
@@ -46,24 +46,22 @@
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
 
-    // Periodic sweep for dynamically created video players, tracks, and frames
-    setInterval(() => {
-      if (SC.getAccessibleDocuments) {
-        SC.getAccessibleDocuments().forEach((d) => {
-          if (SC.observeDocument) SC.observeDocument(d);
-          if (d !== document) {
-            d.removeEventListener('fullscreenchange', handleFsChange);
-            d.removeEventListener('webkitfullscreenchange', handleFsChange);
-            d.addEventListener('fullscreenchange', handleFsChange);
-            d.addEventListener('webkitfullscreenchange', handleFsChange);
-          }
-        });
-      }
-
-      if (SC.scanForVideos) SC.scanForVideos();
-      if (SC.scanPageForSubtitleTracks) SC.scanPageForSubtitleTracks();
-      if (SC.scheduleUpdatePositions) SC.scheduleUpdatePositions();
-      if (SC.broadcastFrameUpdate) SC.broadcastFrameUpdate();
-    }, 1500);
+    const discover = () => SC.scheduleVideoScan?.();
+    for (const event of ['loadedmetadata', 'emptied', 'play']) {
+      document.addEventListener(event, e => {
+        if (e.target?.tagName === 'VIDEO') discover();
+      }, true);
+    }
+    // Each frame runs its own discovery and fullscreen listeners.
+    document.addEventListener('load', e => {
+      if (e.target?.tagName === 'IFRAME' || e.target?.tagName === 'SCRIPT') discover();
+    }, true);
+    window.addEventListener('popstate', discover);
+    window.addEventListener('hashchange', discover);
+    window.navigation?.addEventListener('currententrychange', discover);
+    document.addEventListener('yt-navigate-finish', discover);
+    window.addEventListener('pageshow', e => {
+      if (e.persisted) discover();
+    });
   };
 })();
