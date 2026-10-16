@@ -12,8 +12,39 @@
   SC.ytActiveCues = [];
   SC.ytTrackCues = new Map();
 
+  const runtime = globalThis.browser?.runtime || globalThis.chrome?.runtime;
+  const ytBridgeUrl = runtime?.getURL
+    ? runtime.getURL('modules/capturers/platform_adapters/youtube/bridge.js')
+    : new URL('bridge.js', document.currentScript.src).href;
   let ytBridgeInjected = false;
+  let ytGeneration = 0;
+  const pendingLoads = new Map();
+  const retryAfter = new Map();
   let lastYtFetchTime = 0;
+  let requestSequence = 0;
+
+  function fetchTrackInPage(track) {
+    return new Promise((resolve, reject) => {
+      const requestId = `${Date.now()}:${++requestSequence}`;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+      };
+      const onMessage = event => {
+        if (event.source !== window || event.data?.type !== '__SC_YT_TIMEDTEXT__' ||
+            event.data.requestId !== requestId) return;
+        cleanup();
+        if (event.data.error) reject(new Error(event.data.error));
+        else resolve(event.data.rawBody || '');
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('YouTube caption request timed out'));
+      }, 23000);
+      window.addEventListener('message', onMessage);
+      window.postMessage({ type: '__SC_REQ_YT_TIMEDTEXT__', requestId, baseUrl: track.baseUrl }, '*');
+    });
+  }
 
   SC.isYouTubePage = function() {
     return location.hostname.includes('youtube.com') ||
@@ -51,96 +82,24 @@
       }
     });
 
+    // Chrome runs the packaged MAIN-world bridge from the manifest, avoiding
+    // both page CSP and Trusted Types restrictions on script injection.
+    window.postMessage({ type: '__SC_REQ_YT_TRACKS__' }, '*');
+    if (runtime?.id && typeof runtime.getBrowserInfo !== 'function') return;
+
+    // Standalone fixtures and Firefox versions without MAIN-world support.
     try {
       const script = document.createElement('script');
-      script.textContent = `
-        (() => {
-          function getTracks() {
-            try {
-              // 1. Movie player response
-              const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-              if (player && typeof player.getPlayerResponse === 'function') {
-                const resp = player.getPlayerResponse();
-                const tracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-                if (Array.isArray(tracks) && tracks.length > 0) return tracks;
-              }
-
-              // 2. Window initial player response
-              const initTracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-              if (Array.isArray(initTracks) && initTracks.length > 0) return initTracks;
-
-              // 3. Player options tracklist API
-              if (player && typeof player.getOption === 'function') {
-                const optTracks = player.getOption('captions', 'tracklist');
-                if (Array.isArray(optTracks) && optTracks.length > 0) {
-                  return optTracks.map(t => ({
-                    languageCode: t.languageCode || t.vssId?.replace('.', '') || 'auto',
-                    name: { simpleText: t.displayName || t.languageName || t.name || t.languageCode },
-                    baseUrl: t.baseUrl || t.url
-                  })).filter(t => t.baseUrl);
-                }
-              }
-
-              // 4. Raw player response config args
-              if (window.ytplayer?.config?.args?.raw_player_response) {
-                let raw = window.ytplayer.config.args.raw_player_response;
-                if (typeof raw === 'string') {
-                  try { raw = JSON.parse(raw); } catch (_) {}
-                }
-                const rawTracks = raw?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-                if (Array.isArray(rawTracks) && rawTracks.length > 0) return rawTracks;
-              }
-
-              // 5. Watch flexy element player data
-              const flexy = document.querySelector('ytd-watch-flexy');
-              if (flexy && flexy.playerData) {
-                const flexyTracks = flexy.playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-                if (Array.isArray(flexyTracks) && flexyTracks.length > 0) return flexyTracks;
-              }
-            } catch (_) {}
-            return null;
-          }
-
-          let pollTimer = null;
-          function pollForTracks(maxAttempts = 30) {
-            if (pollTimer) clearInterval(pollTimer);
-            let attempts = 0;
-            pollTimer = setInterval(() => {
-              attempts++;
-              const tracks = getTracks();
-              if (tracks && tracks.length > 0) {
-                clearInterval(pollTimer);
-                pollTimer = null;
-                window.postMessage({ type: '__SC_YT_TRACKS__', tracks: JSON.parse(JSON.stringify(tracks)) }, '*');
-              } else if (attempts >= maxAttempts) {
-                clearInterval(pollTimer);
-                pollTimer = null;
-              }
-            }, 500);
-          }
-
-          function broadcast() {
-            const tracks = getTracks();
-            if (tracks && tracks.length > 0) {
-              window.postMessage({ type: '__SC_YT_TRACKS__', tracks: JSON.parse(JSON.stringify(tracks)) }, '*');
-            } else {
-              pollForTracks(15);
-            }
-          }
-
-          window.addEventListener('message', (e) => {
-            if (e.data && e.data.type === '__SC_REQ_YT_TRACKS__') broadcast();
-          });
-          document.addEventListener('yt-navigate-finish', () => setTimeout(broadcast, 300));
-          document.addEventListener('yt-page-data-updated', () => setTimeout(broadcast, 300));
-
-          pollForTracks(30);
-          broadcast();
-        })();
-      `;
+      script.src = ytBridgeUrl;
+      script.onload = () => script.remove();
+      script.onerror = () => {
+        script.remove();
+        console.warn('[Subtitles] YouTube bridge failed to load');
+      };
       (document.head || document.documentElement).appendChild(script);
-      script.remove();
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[Subtitles] YouTube bridge injection failed:', err);
+    }
   };
 
   /**
@@ -224,6 +183,12 @@
 
   // Handle YouTube SPA in-page video switches
   const handleYtNav = () => {
+    ytGeneration++;
+    if (SC.setTrackLoading) {
+      for (const trackId of pendingLoads.keys()) SC.setTrackLoading(trackId, false);
+    }
+    pendingLoads.clear();
+    retryAfter.clear();
     SC.ytCaptionTracks = [];
     SC.ytActiveCues = [];
     SC.ytTrackCues.clear();
@@ -237,7 +202,9 @@
     }, 400);
   };
   document.addEventListener('yt-navigate-finish', handleYtNav);
-  document.addEventListener('yt-page-data-updated', handleYtNav);
+  document.addEventListener('yt-page-data-updated', () => {
+    if (SC.isYouTubePage()) SC.fetchYouTubeCaptionTracks();
+  });
 
   /**
    * Parses YouTube TimedText JSON3 object into cue array.
@@ -280,93 +247,108 @@
     }
   };
 
+  function activateYouTubeCues(trackId, cues) {
+    const firstTrack = SC.state?.languages?.find(item =>
+      (item.mode === 'track' || item.type === 'source') && (item.trackId || item.lang));
+    const firstTrackId = (firstTrack && (firstTrack.trackId || firstTrack.lang)) || 'auto';
+    if (firstTrackId === trackId || firstTrackId === 'auto' || !SC.ytActiveCues?.length) {
+      SC.ytActiveCues = cues;
+    }
+  }
+
   /**
-   * Fetch complete timedtext track via direct JSON3 or XML request.
-   * Parses all cue events for the entire video timeline.
+   * Fetch and parse the complete caption track without enabling native captions.
    */
   SC.loadYouTubeTimedText = async function(track, trackId = null) {
     if (!track || !track.baseUrl) return;
     const tId = trackId || `yt:${track.languageCode || ''}`;
 
-    if (SC.setTrackLoading) SC.setTrackLoading(tId, true);
-    try {
-      let fetchUrl = track.baseUrl;
-      try {
-        const u = new URL(fetchUrl);
-        u.searchParams.set('fmt', 'json3');
-        fetchUrl = u.toString();
-      } catch (_) {
-        if (fetchUrl.includes('fmt=')) {
-          fetchUrl = fetchUrl.replace(/fmt=[^&]+/, 'fmt=json3');
-        } else {
-          fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'fmt=json3';
-        }
-      }
-
-      const res = await fetch(fetchUrl);
-      if (!res.ok) {
-        console.warn('Timed text request failed with status:', res.status);
-        return;
-      }
-
-      const rawBody = await res.text();
-      let cues = [];
-
-      // Try JSON3 parsing first, then fallback to XML
-      try {
-        const data = JSON.parse(rawBody);
-        cues = SC.parseYouTubeJson3(data);
-      } catch (_) {
-        cues = SC.parseYouTubeXml(rawBody);
-      }
-
-      if (cues && cues.length > 0) {
-        SC.ytTrackCues.set(tId, cues);
-
-        const firstTrack = SC.state && SC.state.languages ? SC.state.languages.find(l => (l.mode === 'track' || l.type === 'source') && (l.trackId || l.lang)) : null;
-        const firstTrackId = (firstTrack && (firstTrack.trackId || firstTrack.lang)) || 'auto';
-        if (firstTrackId === tId || firstTrackId === 'auto' || !SC.ytActiveCues || SC.ytActiveCues.length === 0) {
-          SC.ytActiveCues = cues;
-        }
-
-        const activeVideo = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
-        if (activeVideo && SC.registerVideoWithSubtitles) {
-          SC.registerVideoWithSubtitles(activeVideo);
-        }
-
-        if (SC.state && SC.state.lines) {
-          SC.state.lines.forEach(l => {
-            if (!l.trackTexts) l.trackTexts = {};
-            if (!l.trackTexts[tId]) {
-              const match = cues.find(c => l.rawTime >= c.start && l.rawTime <= c.end);
-              if (match) l.trackTexts[tId] = match.text;
-            }
-          });
-        }
-
-        if (SC.state && SC.state.languages) {
-          SC.state.languages.forEach(item => {
-            if (item.sourceFrom === tId && SC.retranslateItem) {
-              SC.retranslateItem(item);
-            }
-          });
-        }
-
-        if (SC.renderAllLines) {
-          SC.renderAllLines();
-        }
-
-        // Prefetch translations 30-60 seconds ahead
-        if (SC.prefetchUpcomingTranslations) {
-          const v = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
-          SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
-        }
-      }
-    } catch (err) {
-      console.warn('Timed text load error:', err);
-    } finally {
-      if (SC.setTrackLoading) SC.setTrackLoading(tId, false);
+    if (SC.ytTrackCues.has(tId)) {
+      activateYouTubeCues(tId, SC.ytTrackCues.get(tId));
+      return;
     }
+    if (pendingLoads.has(tId)) return pendingLoads.get(tId);
+    if (Date.now() < (retryAfter.get(tId) || 0)) return;
+    const generation = ytGeneration;
+    const request = (async () => {
+      if (SC.setTrackLoading) SC.setTrackLoading(tId, true);
+      try {
+        let rawBody;
+        if (runtime?.id) {
+          SC.initYouTubeBridge();
+          rawBody = await fetchTrackInPage(track);
+        } else {
+          const url = new URL(track.baseUrl);
+          url.searchParams.set('fmt', 'json3');
+          const response = await fetch(url.href);
+          if (!response.ok) throw new Error(`Timed text request failed: ${response.status}`);
+          rawBody = await response.text();
+        }
+        let cues = [];
+
+        // Try JSON3 parsing first, then fallback to XML
+        try {
+          const data = JSON.parse(rawBody);
+          cues = SC.parseYouTubeJson3(data);
+        } catch (_) {
+          cues = SC.parseYouTubeXml(rawBody);
+        }
+
+        if (generation !== ytGeneration) return;
+        if (!cues.length) {
+          retryAfter.set(tId, Date.now() + 15000);
+          console.warn('[Subtitles] YouTube returned no cues:', { bytes: rawBody.length });
+        }
+        if (cues && cues.length > 0) {
+          SC.ytTrackCues.set(tId, cues);
+
+          activateYouTubeCues(tId, cues);
+
+          const activeVideo = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
+          if (activeVideo && SC.registerVideoWithSubtitles) {
+            SC.registerVideoWithSubtitles(activeVideo);
+          }
+
+          if (SC.state && SC.state.lines) {
+            SC.state.lines.forEach(l => {
+              if (!l.trackTexts) l.trackTexts = {};
+              if (!l.trackTexts[tId]) {
+                const match = cues.find(c => l.rawTime >= c.start && l.rawTime <= c.end);
+                if (match) l.trackTexts[tId] = match.text;
+              }
+            });
+          }
+
+          if (SC.state && SC.state.languages) {
+            SC.state.languages.forEach(item => {
+              if (item.sourceFrom === tId && SC.retranslateItem) {
+                SC.retranslateItem(item);
+              }
+            });
+          }
+
+          if (SC.renderAllLines) {
+            SC.renderAllLines();
+          }
+
+          // Prefetch translations 30-60 seconds ahead
+          if (SC.prefetchUpcomingTranslations) {
+            const v = SC.getActiveVideo ? SC.getActiveVideo() : document.querySelector('video');
+            SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, 60);
+          }
+        }
+      } catch (err) {
+        if (generation === ytGeneration) retryAfter.set(tId, Date.now() + 15000);
+        console.warn('Timed text load error:', err);
+      } finally {
+        if (generation === ytGeneration) {
+          pendingLoads.delete(tId);
+          if (SC.setTrackLoading) SC.setTrackLoading(tId, false);
+        }
+      }
+    })();
+    pendingLoads.set(tId, request);
+    return request;
   };
 
   /**

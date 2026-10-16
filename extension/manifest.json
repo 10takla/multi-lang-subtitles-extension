@@ -33,6 +33,17 @@
   "content_scripts": [
     {
       "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "modules/capturers/platform_adapters/youtube/bridge.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": [
         "<all_urls>"
       ],
       "js": [
@@ -85,6 +96,14 @@
       ],
       "matches": [
         "<all_urls>"
+      ]
+    },
+    {
+      "resources": [
+        "modules/capturers/platform_adapters/youtube/bridge.js"
+      ],
+      "matches": [
+        "*://*.youtube.com/*"
       ]
     }
   ],

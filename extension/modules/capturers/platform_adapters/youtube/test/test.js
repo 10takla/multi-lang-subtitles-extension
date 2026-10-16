@@ -99,6 +99,9 @@
     let allPassed = true;
 
     try {
+      for (let attempt = 0; attempt < 50 && !window.__subtitlesCapturerInjected; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       const capturer = await getCapturer();
       if (!capturer) {
         throw new Error(`Capturer module '${MODULE_NAME}' failed to load`);
@@ -175,6 +178,55 @@
         });
       }
 
+      // Fetch must preserve the signed URL and work with CC disabled.
+      const SC = window.__SC;
+      const ccButton = document.getElementById('ytp-cc-btn');
+      const nativeState = ccButton.getAttribute('aria-pressed');
+      const originalFetch = window.fetch;
+      const signedUrl = 'https://www.youtube.com/api/timedtext?v=local&lang=en&fmt=json3&signature=test&expire=123';
+      let requests = 0;
+      let unchangedUrl = true;
+      window.fetch = async (url) => {
+        requests++;
+        unchangedUrl = unchangedUrl && url === signedUrl;
+        await new Promise(resolve => setTimeout(resolve, 10));
+        return new Response(JSON.stringify({ events: [
+          { tStartMs: 500, dDurationMs: 2500, segs: [{ utf8: 'Independent caption' }] }
+        ] }));
+      };
+      const originalSetOption = moviePlayer.setOption;
+      let playerChanges = 0;
+      moviePlayer.setOption = () => { playerChanges++; };
+      const savedActiveCues = SC.ytActiveCues;
+      try {
+        SC.ytTrackCues.delete('yt:test-signed');
+        await Promise.all([
+          SC.loadYouTubeTimedText({ baseUrl: signedUrl }, 'yt:test-signed'),
+          SC.loadYouTubeTimedText({ baseUrl: signedUrl }, 'yt:test-signed')
+        ]);
+        const independent = requests === 1 && unchangedUrl && playerChanges === 0 &&
+          ccButton.getAttribute('aria-pressed') === nativeState &&
+          SC.getYouTubeTrackTextAtTime('yt:test-signed', 1) === 'Independent caption';
+        testCases.push({ name: 'CC-independent signed track loading and request deduplication', passed: independent });
+        allPassed = allPassed && independent;
+      } finally {
+        window.fetch = originalFetch;
+        moviePlayer.setOption = originalSetOption;
+        SC.ytTrackCues.delete('yt:test-signed');
+        SC.ytActiveCues = savedActiveCues;
+      }
+
+      // Verify bridge discovery under CSP without an inline-script fallback.
+      SC.initYouTubeBridge();
+      for (let attempt = 0; attempt < 50 && !SC.ytTrackCues.get('yt:ru')?.length; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      const bridgePassed = window.__SCYouTubeBridge === true &&
+        SC.ytTrackCues.get('yt:ru')?.length > 0 && nativeState === 'false' &&
+        ccButton.getAttribute('aria-pressed') === 'false';
+      testCases.push({ name: 'External bridge under strict CSP with native CC disabled', passed: bridgePassed });
+      allPassed = allPassed && bridgePassed;
+
       // Test 4: Live Stand capture() execution
       const captured = await capturer.capture();
       testCases.push({
@@ -248,6 +300,7 @@
   }
 
   window.runSubtitlesTests = runSubtitlesTests;
+  document.getElementById('rerun-tests')?.addEventListener('click', runSubtitlesTests);
 
   // Auto-run on load
   if (document.readyState === 'loading') {
