@@ -227,6 +227,62 @@
       testCases.push({ name: 'External bridge under strict CSP with native CC disabled', passed: bridgePassed });
       allPassed = allPassed && bridgePassed;
 
+      // Repeated background renders must keep native dropdowns attached to the DOM.
+      for (let attempt = 0; attempt < 100 && !SC._hasInitializedLifecycle; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      // Use a separate host so an installed extension cannot claim this fixture's UI.
+      const testHost = document.createElement('div');
+      testHost.style.cssText = 'position:fixed;left:-10000px;top:0';
+      document.body.appendChild(testHost);
+      const originalRoot = SC.shadowRoot;
+      const originalWidget = SC.widgetEl;
+      const widgetVisible = SC.state.widgetVisible;
+      const getTracks = SC.getAvailableVideoTracks;
+      try {
+        SC.shadowRoot = testHost.attachShadow({ mode: 'open' });
+        const languageList = document.createElement('div');
+        languageList.id = 'sc-lang-list';
+        const widget = document.createElement('div');
+        widget.appendChild(languageList);
+        SC.shadowRoot.appendChild(widget);
+        SC.renderLanguageList();
+        const originalSelect = languageList.querySelector('select');
+        SC.renderLanguageList();
+        SC.renderLanguageList();
+        const stableSelect = originalSelect && originalSelect.isConnected &&
+          languageList.querySelector('select') === originalSelect;
+        testCases.push({ name: 'Background renders preserve language dropdowns', passed: Boolean(stableSelect) });
+        allPassed = allPassed && Boolean(stableSelect);
+
+        originalSelect.focus({ preventScroll: true });
+        SC.widgetEl = widget;
+        SC.state.widgetVisible = true;
+        widget.style.left = '123px';
+        SC.updateWidgetPosition();
+        const anchored = SC.shadowRoot.activeElement === originalSelect && widget.style.left === '123px';
+        testCases.push({ name: 'Choosing an option keeps the panel anchored', passed: anchored });
+        allPassed = allPassed && anchored;
+
+        SC.getAvailableVideoTracks = () => [...getTracks(), { value: 'test:new', label: 'New test track' }];
+        SC.renderLanguageList();
+        const deferred = originalSelect.isConnected && SC.shadowRoot.activeElement === originalSelect;
+        testCases.push({ name: 'Track updates preserve the focused dropdown', passed: deferred });
+        allPassed = allPassed && deferred;
+        originalSelect.blur();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        const updated = Array.from(languageList.querySelectorAll('option')).some(option => option.value === 'test:new');
+        testCases.push({ name: 'Changed tracks still update language dropdowns', passed: updated });
+        allPassed = allPassed && updated;
+      } finally {
+        SC.getAvailableVideoTracks = getTracks;
+        SC.shadowRoot = originalRoot;
+        SC.widgetEl = originalWidget;
+        SC.state.widgetVisible = widgetVisible;
+        testHost.remove();
+        SC.renderLanguageList();
+      }
+
       // Test 4: Live Stand capture() execution
       const captured = await capturer.capture();
       testCases.push({

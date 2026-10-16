@@ -81,6 +81,10 @@
       return;
     }
 
+    // Keep the native popup anchored while the user is choosing an option.
+    const focused = SC.shadowRoot?.activeElement;
+    if (focused?.tagName === 'SELECT' && SC.widgetEl.contains(focused)) return;
+
     SC.widgetEl.classList.remove('sc-hidden');
 
     const pad = 6;

@@ -40,14 +40,38 @@
   };
 
   // Render language selectors list in the widget header
-  SC.renderLanguageList = function() {
+  let renderedList = null;
+  let renderedSignature = null;
+  let renderedItems = [];
+  let deferredSelect = null;
+  function getListSignature(tracks) {
+    return JSON.stringify([
+      SC.state.languages, tracks, SC.state.moveLocked, SC._activeToggleDragIndex,
+      SC.AVAILABLE_LANGUAGES, SC.getAvailableEngines ? SC.getAvailableEngines() : SC.TRANSLATION_ENGINES
+    ]);
+  }
+
+  SC.renderLanguageList = function(force = false) {
     if (!SC.shadowRoot) return;
     const container = SC.shadowRoot.getElementById('sc-lang-list');
     if (!container) return;
+    const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
+    // Replacing a native select closes its popup, even while the pointer is over it.
+    if (renderedList === container && renderedSignature === getListSignature(availTracks) &&
+        SC.state.languages.every((item, index) => item === renderedItems[index])) return;
+    const focused = SC.shadowRoot.activeElement;
+    if (!force && focused?.tagName === 'SELECT' && container.contains(focused)) {
+      if (deferredSelect !== focused) {
+        deferredSelect = focused;
+        focused.addEventListener('blur', () => {
+          if (deferredSelect === focused) deferredSelect = null;
+          setTimeout(() => SC.renderLanguageList(), 0);
+        }, { once: true });
+      }
+      return;
+    }
     container.innerHTML = '';
     container.classList.toggle('sc-locked', Boolean(SC.state.moveLocked));
-
-    const availTracks = SC.getAvailableVideoTracks ? SC.getAvailableVideoTracks() : [];
 
     SC.state.languages.forEach((item, index) => {
       // Normalize selector properties
@@ -517,7 +541,7 @@
             SC.prefetchUpcomingTranslations(v ? v.currentTime : 0, item.bufferChars);
           }
         }
-        SC.renderLanguageList();
+        SC.renderLanguageList(true);
         if (SC.renderAllLines) SC.renderAllLines();
         if (SC.autoSaveSiteSettings) SC.autoSaveSiteSettings();
       });
@@ -547,5 +571,8 @@
       container.appendChild(row);
       row.querySelectorAll('.sc-compact-slider-input').forEach(SC.resizeSliderValueInput);
     });
+    renderedList = container;
+    renderedSignature = getListSignature(availTracks);
+    renderedItems = [...SC.state.languages];
   };
 })();
